@@ -119,7 +119,7 @@ def update_graph(frame, selected):
         fig.add_trace(go.Scatter(
             x=current_x,
             y=y_vals,
-            mode='lines+markers+text',
+            mode='lines+text',
             name=team,
             line=dict(color=colors[team], width=1),
             marker=dict(size=4),
