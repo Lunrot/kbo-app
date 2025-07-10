@@ -53,7 +53,7 @@ def get_team_colors():
 
 # 데이터 준비
 dates, data, df, teams = read_kbo_data()
-x_interp, interp_df, interp_steps = interpolate_data(df)
+x_interp, interp_df, interp_steps = interpolate_data(df, n_interp=2)
 colors = get_team_colors()
 
 # 축 범위 계산
