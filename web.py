@@ -53,7 +53,7 @@ def get_team_colors():
 
 # 데이터 준비
 dates, data, df, teams = read_kbo_data()
-x_interp, interp_df, interp_steps = interpolate_data(df, n_interp=2)
+x_interp, interp_df, interp_steps = interpolate_data(df, n_interp=1)
 colors = get_team_colors()
 
 # 축 범위 계산
@@ -152,7 +152,8 @@ def update_graph(frame, selected):
         title="2025 KBO 팀 승패 마진 그래프",
         legend_title_text="팀",
         margin=dict(t=60, b=60),
-        uirevision='static'
+        uirevision='static',
+        transition=dic(duration=0),
     )
     return fig
 
