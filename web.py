@@ -76,7 +76,7 @@ app.layout = html.Div([
     ),
     html.Button('Play', id='play-button', n_clicks=0),
     html.Button('Pause', id='pause-button', n_clicks=0),
-    dcc.Interval(id='interval', interval=100, n_intervals=0, disabled=True)
+    dcc.Interval(id='interval', interval=20, n_intervals=0, disabled=True)
 ])
 
 @app.callback(
