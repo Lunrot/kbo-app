@@ -6,29 +6,25 @@
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <style>
-    body {
-      font-family: sans-serif;
-      padding: 20px;
-    }
-    #graph {
-      width: 100%;
-      height: calc(100vh - 260px); /* 반응형 높이 조절 */
-    }
-    #controls {
-      margin-top: 20px;
-    }
+    body { font-family: sans-serif; padding: 20px; }
+    #graph { width: 100%; height: 700px; }
+    #controls { margin-top: 20px; }
+    #uploadArea { margin-top: 20px; }
   </style>
 </head>
 <body>
   <h1>2025 KBO 팀 승패 마진 그래프</h1>
 
-  <input type="file" id="fileInput" accept=".csv">
   <div id="graph"></div>
 
   <div id="controls">
     <input type="range" id="slider" min="0" max="0" value="0" step="1" style="width: 100%;">
-    <div id="dateDisplay" style="margin-top: 10px;"></div>
     <div id="teamSelect" style="margin-top:10px;"></div>
+  </div>
+
+  <div id="uploadArea">
+    <label for="csvFile">📂 CSV 파일 업로드:</label>
+    <input type="file" id="csvFile" accept=".csv">
   </div>
 
   <script>
@@ -59,16 +55,11 @@
       const teamRows = data.slice(13, 23).filter(r => r[0] !== "" && r[0] !== undefined);
       raw.teams = teamRows.map(r => r[0]);
 
-      // 기본 색상 팔레트 적용
-      const defaultColors = Plotly.d3 ? Plotly.d3.schemeCategory10 : [
-        '#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#8c564b',
-        '#e377c2','#7f7f7f','#bcbd22','#17becf'
-      ];
-
-      raw.colors = {};
-      raw.teams.forEach((team, i) => {
-        raw.colors[team] = defaultColors[i % defaultColors.length];
-      });
+      raw.colors = {
+        'KIA': '#ea0029', '삼성': '#074ca1', 'LG': '#c30452', '두산': '#1a1748',
+        'KT': '#000000', 'SSG': '#ce0e2d', '롯데': '#041e42',
+        '한화': '#fc4e00', 'NC': '#315288', '키움': '#570514'
+      };
 
       raw.data = {};
       for (const row of teamRows) {
@@ -77,6 +68,7 @@
       }
 
       maxLength = raw.data[raw.teams[0]].length;
+
       document.getElementById("slider").max = maxLength - 1;
       document.getElementById("slider").value = maxLength - 1;
 
@@ -99,7 +91,6 @@
       });
 
       drawGraph(maxLength - 1);
-      document.getElementById("dateDisplay").textContent = `날짜: ${dateColumns[maxLength - 1]}`;
     }
 
     function drawGraph(frame) {
@@ -121,29 +112,45 @@
       Plotly.newPlot("graph", traces, {
         title: "2025 KBO 팀 승패 마진 그래프",
         margin: { t: 60, b: 60 },
-        xaxis: { title: "날짜", type: 'category', fixedrange: false },
-        yaxis: { title: "승패 마진", fixedrange: false }
+        xaxis: { title: "날짜", type: 'category', fixedrange: true },
+        yaxis: { title: "승패 마진", fixedrange: true }
       }, {
-        scrollZoom: true,
-        responsive: true,
-        displaylogo: false
+        scrollZoom: false,
+        displaylogo: false,
+        modeBarButtonsToRemove: [
+          'zoom2d', 'pan2d', 'select2d', 'lasso2d',
+          'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'
+        ]
       });
     }
 
-    document.getElementById("slider").addEventListener("input", (e) => {
-      const frame = Number(e.target.value);
-      drawGraph(frame);
-      document.getElementById("dateDisplay").textContent = `날짜: ${dateColumns[frame]}`;
-    });
+    // ✅ 기본 fetch 로딩
+    fetch('./야구승패 - 2025.csv')
+      .then(response => response.text())
+      .then(csv => {
+        parseCSVAndRender(csv);
+      })
+      .catch(error => {
+        console.error("CSV 로딩 실패:", error);
+      });
 
-    // 파일 업로드 이벤트
-    document.getElementById("fileInput").addEventListener("change", (e) => {
-      const file = e.target.files[0];
+    // ✅ 수동 파일 업로드
+    document.getElementById("csvFile").addEventListener("change", function(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
       const reader = new FileReader();
-      reader.onload = (evt) => {
-        parseCSVAndRender(evt.target.result);
+      reader.onload = function(e) {
+        const csv = e.target.result;
+        parseCSVAndRender(csv);
+        // alert("CSV 파일이 성공적으로 로드되었습니다.");
       };
       reader.readAsText(file);
+    });
+
+    // ✅ 슬라이더 이벤트
+    document.getElementById("slider").addEventListener("input", (e) => {
+      drawGraph(Number(e.target.value));
     });
   </script>
 </body>
