@@ -107,11 +107,20 @@
         margin: {t: 60, b: 60},
         xaxis: {
           title: "날짜",
-          type: 'category'
+          type: 'category',
+          fixedrange: true
         },
         yaxis: {
-          title: "승패 마진"
+          title: "승패 마진",
+          fixedrange: true
         }
+      }, {
+        scrollZoom: false,
+        displaylogo: false,
+        modeBarButtonsToRemove: [
+          'zoom2d', 'pan2d', 'select2d', 'lasso2d',
+          'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d'
+        ]
       });
     }
 
