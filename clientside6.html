@@ -92,9 +92,9 @@
   </div>
 
   <div id="uploadArea">
-    <label for="csvFile">📂 CSV 파일 업로드 (선택):</label>
+    <label for="csvFile">📂 CSV 파일 업로드 :</label>
     <input type="file" id="csvFile" accept=".csv">
-    <p>⚠️ <code>야구승패 - 2025.csv</code> 형식과 동일한 구조여야 합니다.</p>
+    <!-- <p>⚠️ <code>야구승패 - 2025.csv</code> 형식과 동일한 구조여야 합니다.</p> -->
   </div>
 
   <script>
@@ -209,7 +209,7 @@
       reader.onload = function(e) {
         const csv = e.target.result;
         parseCSVAndRender(csv);
-        alert("CSV 파일이 성공적으로 로드되었습니다.");
+        // alert("CSV 파일이 성공적으로 로드되었습니다.");
       };
       reader.readAsText(file);
     });
