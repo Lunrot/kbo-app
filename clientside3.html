@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>2025 KBO 팀 승패 마진 그래프</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    #graph { width: 100%; height: 700px; }
+    #controls { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>2025 KBO 팀 승패 마진 그래프</h1>
+  <input type="file" id="csvFileInput" accept=".csv">
+  <div id="graph"></div>
+
+  <div id="controls">
+    <input type="range" id="slider" min="0" max="0" value="0" step="1" style="width: 100%;">
+    <div id="teamSelect" style="margin-top:10px;"></div>
+  </div>
+
+  <script>
+    let raw = { teams: [], colors: {}, data: {} };
+    let dateColumns = [];
+    let maxLength = 0;
+
+    function parseCSVAndRender(contents) {
+      const data = Papa.parse(contents.trim(), { header: false }).data;
+
+      // 1️⃣ 유효한 날짜 인덱스 찾기 (첫 번째 테이블 기준: 1~10행)
+      let lastValidIndex = 0;
+      for (let i = 1; i <= 10; i++) {
+        const row = data[i];
+        for (let j = row.length - 1; j >= 1; j--) {
+          if (row[j] !== "" && row[j] !== null && row[j] !== undefined) {
+            lastValidIndex = Math.max(lastValidIndex, j - 1); // j-1: 날짜 배열 기준
+            break;
+          }
+        }
+      }
+
+      // 2️⃣ 날짜 처리 (12번 행), '3.3' → '03-03'
+      const dateRow = data[12];
+      dateColumns = dateRow.slice(1, lastValidIndex + 2).map(mmdd => {
+        const [m, d] = mmdd.split('.').map(Number);
+        return `${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      });
+
+      // 3️⃣ 누적 승패 마진: 13~22행
+      const teamRows = data.slice(13, 23).filter(r => r[0] !== "" && r[0] !== undefined);
+      raw.teams = teamRows.map(r => r[0]);
+
+      raw.colors = {
+        'KIA': '#ea0029', '삼성': '#074ca1', 'LG': '#c30452', '두산': '#1a1748',
+        'KT': '#000000', 'SSG': '#ce0e2d', '롯데': '#041e42',
+        '한화': '#fc4e00', 'NC': '#315288', '키움': '#570514'
+      };
+
+      raw.data = {};
+      for (const row of teamRows) {
+        const team = row[0];
+        raw.data[team] = row.slice(1, lastValidIndex + 2).map(v => parseInt((v || '0').trim(), 10));
+      }
+
+      maxLength = raw.data[raw.teams[0]].length;
+
+      document.getElementById("slider").max = maxLength - 1;
+      document.getElementById("slider").value = maxLength - 1;
+
+      const teamSelect = document.getElementById("teamSelect");
+      teamSelect.innerHTML = "";
+      raw.teams.forEach(t => {
+        const label = document.createElement("label");
+        label.style.marginRight = "10px";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = t;
+        checkbox.checked = false;
+        checkbox.addEventListener("change", () => {
+          const frame = Number(document.getElementById("slider").value);
+          drawGraph(frame);
+        });
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(" " + t));
+        teamSelect.appendChild(label);
+      });
+
+      drawGraph(maxLength - 1);
+    }
+
+    function drawGraph(frame) {
+      const selected = Array.from(document.querySelectorAll('#teamSelect input:checked')).map(cb => cb.value);
+      const traces = raw.teams.map(team => {
+        const x = dateColumns.slice(0, frame + 1);
+        const y = raw.data[team].slice(0, frame + 1);
+        return {
+          x: x,
+          y: y,
+          type: "scatter",
+          mode: "lines",
+          name: team,
+          line: { color: raw.colors[team], width: 2 },
+          opacity: selected.length === 0 || selected.includes(team) ? 1 : 0.2
+        };
+      });
+
+      Plotly.newPlot("graph", traces, {
+        title: "2025 KBO 팀 승패 마진 그래프",
+        margin: {t: 60, b: 60},
+        xaxis: {
+          title: "날짜",
+          type: 'category'  // 문자열 정렬 보존
+        },
+        yaxis: {
+          title: "승패 마진"
+        }
+      });
+    }
+
+    document.getElementById("csvFileInput").addEventListener("change", function(e) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        parseCSVAndRender(event.target.result);
+      };
+      reader.readAsText(file);
+    });
+
+    document.getElementById("slider").addEventListener("input", (e) => {
+      drawGraph(Number(e.target.value));
+    });
+  </script>
+</body>
+</html>
