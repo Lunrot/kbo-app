@@ -125,8 +125,8 @@
     }
 
     // ✅ 기본 fetch 로딩
-    fetch('./야구승패 - 2025.csv')
-    // fetch('./2025.xlsx?v=' + new Date().getTime())
+    // fetch('./야구승패 - 2025.csv')
+    fetch('./야구승패 - 2025.csv?v=' + new Date().getTime())
       .then(response => response.text())
       .then(csv => {
         parseCSVAndRender(csv);
