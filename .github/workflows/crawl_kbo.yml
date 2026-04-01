@@ -2,7 +2,6 @@ name: KBO 2026 크롤러
 
 on:
   schedule:
-    - cron: '0 12 * * *'  # 매일 오후 10시 KST (UTC 00:00 = KST 09:00)
     - cron: '0 13 * * *'  # 매일 오후 11시 KST (UTC 00:00 = KST 09:00)
     - cron: '0 21 * * *'  # 매일 오전 6시 KST (UTC 21:00 = KST 06:00)
   workflow_dispatch:       # GitHub 웹에서 수동 실행 가능
