@@ -67,7 +67,7 @@
         raw.data[team] = [0, ...row.slice(1, lastValidIndex + 2).map(v => parseInt((v || '0').trim(), 10))];
       }
 
-      dateColumns = ['날짜', ...dateColumns];
+      dateColumns = ['시작', ...dateColumns];
       maxLength = raw.data[raw.teams[0]].length;
 
       document.getElementById("slider").max = maxLength - 1;
