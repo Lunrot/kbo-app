@@ -2,41 +2,104 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>KBO 팀 승패 마진 그래프</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KBO 팀 승패 그래프</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      max-width: 100%;
+      overflow-x: hidden;
+    }
+
     body {
-      font-family: sans-serif;
-      padding: 6px 20px 20px 20px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
       margin: 0;
+      padding: 14px 20px 28px 20px;
+      background: linear-gradient(180deg, #f7f9fc 0%, #eef3f8 100%);
+      color: #1f2937;
+    }
+
+    .page {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .title-badge {
+      display: inline-block;
+      margin-bottom: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #111827;
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
     }
 
     h2 {
-      margin: 0 0 8px 0;
+      margin: 0 0 14px 0;
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #0f172a;
+    }
+
+    .section-card {
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid #e5e7eb;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+      padding: 14px 16px;
+      backdrop-filter: blur(6px);
+    }
+
+    .section-card + .section-card {
+      margin-top: 16px;
+    }
+
+    #graphWrap {
+      width: 100%;
+      max-width: 100%;
+      overflow: hidden;
+      border-radius: 16px;
     }
 
     #graph {
       width: 100%;
+      max-width: 100%;
       height: 700px;
+      overflow: hidden;
+      border-radius: 16px;
     }
 
     #controls {
-      margin-top: 20px;
+      margin-top: 0;
     }
 
-    #uploadArea {
-      margin-top: 20px;
+    .controls-title,
+    .upload-title {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      font-weight: 700;
+      color: #475569;
     }
 
     #slider {
       width: 80%;
       display: block;
       margin: 0 auto;
+      height: 24px;
+      max-width: 100%;
+      accent-color: #2563eb;
     }
 
     #teamSelect {
-      margin-top: 14px;
+      margin-top: 16px;
       width: 80%;
       margin-left: auto;
       margin-right: auto;
@@ -49,23 +112,188 @@
       display: flex;
       align-items: center;
       white-space: nowrap;
-      font-size: 14px;
+      font-size: 16px;
+      line-height: 1.35;
+      min-width: 0;
+      padding: 6px 8px;
+      border-radius: 12px;
+      transition: background-color 0.15s ease, transform 0.15s ease;
+    }
+
+    #teamSelect label:hover {
+      background: rgba(37, 99, 235, 0.06);
+      transform: translateY(-1px);
+    }
+
+    #teamSelect input[type="checkbox"] {
+      transform: scale(1.1);
+      margin-right: 6px;
+      flex-shrink: 0;
+    }
+
+    #teamSelect label span {
+      margin-left: 2px;
+      font-weight: 700;
+    }
+
+    #uploadArea {
+      margin-top: 0;
+      font-size: 16px;
+    }
+
+    .upload-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    #csvFile {
+      font-size: 15px;
+      padding: 6px 0;
+    }
+
+    /* 스마트폰 세로 */
+    @media (max-width: 767px) and (orientation: portrait) {
+      body {
+        padding: 10px 10px 20px 10px;
+      }
+
+      h2 {
+        font-size: 24px;
+        margin: 0 0 12px 0;
+      }
+
+      .section-card {
+        border-radius: 18px;
+        padding: 12px 12px;
+      }
+
+      #graphWrap {
+        width: calc(100vw - 20px);
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      #graph {
+        height: 480px;
+      }
+
+      #slider {
+        width: 96%;
+        height: 28px;
+      }
+
+      #teamSelect {
+        width: 96%;
+        grid-template-columns: repeat(2, minmax(140px, 1fr));
+        gap: 10px 12px;
+      }
+
+      #teamSelect label {
+        font-size: 18px;
+        line-height: 1.4;
+        padding: 7px 8px;
+      }
+
+      #teamSelect input[type="checkbox"] {
+        transform: scale(1.35);
+        margin-right: 8px;
+      }
+
+      #uploadArea {
+        font-size: 18px;
+      }
+
+      #csvFile {
+        font-size: 16px;
+      }
+    }
+
+    /* 스마트폰 가로 */
+    @media (max-height: 500px) and (orientation: landscape) {
+      body {
+        padding: 8px 10px 18px 10px;
+      }
+
+      h2 {
+        font-size: 20px;
+        margin: 0 0 10px 0;
+      }
+
+      .section-card {
+        padding: 10px 12px;
+        border-radius: 16px;
+      }
+
+      #graphWrap {
+        width: calc(100vw - 20px);
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      #graph {
+        height: 300px;
+      }
+
+      #slider {
+        width: 96%;
+        height: 26px;
+      }
+
+      #teamSelect {
+        width: 96%;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 8px 10px;
+        align-items: center;
+      }
+
+      #teamSelect label {
+        font-size: 15px;
+        line-height: 1.2;
+        min-width: 0;
+        padding: 5px 6px;
+      }
+
+      #teamSelect input[type="checkbox"] {
+        transform: scale(1.05);
+        margin-right: 6px;
+        flex-shrink: 0;
+      }
+
+      #uploadArea {
+        font-size: 16px;
+      }
+
+      #csvFile {
+        font-size: 15px;
+      }
     }
   </style>
 </head>
 <body>
-  <h2 id="chartTitle">2026 KBO 팀 승패 마진 그래프</h2>
+  <div class="page">    
+    <h2 id="chartTitle" class="title-badge">2026 KBO 팀 승패 그래프</h2>
 
-  <div id="graph"></div>
+    <div class="section-card">
+      <div id="graphWrap">
+        <div id="graph"></div>
+      </div>
+    </div>
 
-  <div id="controls">
-    <input type="range" id="slider" min="0" max="0" value="0" step="1">
-    <div id="teamSelect"></div>
-  </div>
+    <div id="controls" class="section-card">
+      <div class="controls-title">팀 선택 / 시점 조절</div>
+      <input type="range" id="slider" min="0" max="0" value="0" step="1">
+      <div id="teamSelect"></div>
+    </div>
 
-  <div id="uploadArea">
-    <label for="csvFile">📂 파일 업로드:</label>
-    <input type="file" id="csvFile" accept=".csv">
+    <div id="uploadArea" class="section-card">
+      <div class="upload-title">데이터 파일</div>
+      <div class="upload-row">
+        <label for="csvFile">📂 CSV 업로드:</label>
+        <input type="file" id="csvFile" accept=".csv">
+      </div>
+    </div>
   </div>
 
   <script>
@@ -80,10 +308,22 @@
     let dateColumns = [];
     let maxLength = 0;
 
+    function isMobileScreen() {
+      return Math.min(window.innerWidth, window.innerHeight) < 768;
+    }
+
+    function isPortraitMobile() {
+      return isMobileScreen() && window.matchMedia("(orientation: portrait)").matches;
+    }
+
+    function isLandscapeMobile() {
+      return isMobileScreen() && window.matchMedia("(orientation: landscape)").matches;
+    }
+
     function updateTitle(filename) {
       const titleEl = document.getElementById("chartTitle");
       const baseName = filename.replace(/\.[^/.]+$/, "");
-      titleEl.textContent = `${baseName} KBO 팀 승패 마진 그래프`;
+      titleEl.textContent = `${baseName} KBO 팀 승패 그래프`;
     }
 
     function parseCSVAndRender(contents) {
@@ -193,21 +433,38 @@
           drawGraph(currentFrame);
         });
 
-        const text = document.createTextNode(` ${team} ${winRate.toFixed(3)}`);
+        const textSpan = document.createElement("span");
+        textSpan.textContent = `${team} ${winRate.toFixed(3)}`;
+        textSpan.style.color = raw.colors[team] || "#000000";
 
         label.appendChild(checkbox);
-        label.appendChild(text);
+        label.appendChild(textSpan);
         teamSelect.appendChild(label);
       });
     }
 
     function drawGraph(frame) {
+      const graphEl = document.getElementById("graph");
+      const graphWrapEl = document.getElementById("graphWrap");
+
       const selected = Array.from(
         document.querySelectorAll('#teamSelect input:checked')
       ).map(cb => cb.value);
 
       const sortedTeams = getSortedTeams(frame);
       const drawingOrder = [...sortedTeams].reverse();
+
+      const isMobile = isMobileScreen();
+      const isPortrait = isPortraitMobile();
+      const isLandscape = isLandscapeMobile();
+
+      const graphHeight = isLandscape ? 300 : (isPortrait ? 480 : 700);
+
+      const wrapWidth = Math.floor(graphWrapEl.getBoundingClientRect().width);
+      const viewportWidth = Math.floor(window.innerWidth);
+      const graphWidth = isLandscape
+        ? Math.min(wrapWidth, viewportWidth - 20)
+        : wrapWidth;
 
       const traces = drawingOrder.map(team => {
         const x = dateColumns.slice(0, frame + 1);
@@ -219,23 +476,63 @@
           type: "scatter",
           mode: "lines",
           name: team,
-          line: { color: raw.colors[team], width: 3 },
-          opacity: selected.length === 0 || selected.includes(team) ? 1 : 0.2
+          line: { color: raw.colors[team], width: isMobile ? 4 : 3 },
+          opacity: selected.length === 0 || selected.includes(team) ? 1 : 0.2,
+          hoverlabel: {
+            font: {
+              size: isMobile ? 18 : 14
+            }
+          }
         };
       });
 
-      Plotly.newPlot("graph", traces, {
-        margin: { t: 10, b: 60},
-        xaxis: { title: "날짜", type: "category", fixedrange: true },
-        yaxis: { title: "승패 마진", fixedrange: true },
+      Plotly.newPlot(graphEl, traces, {
+        width: graphWidth,
+        height: graphHeight,
+        autosize: false,
+        paper_bgcolor: "rgba(0,0,0,0)",
+        plot_bgcolor: "rgba(248,250,252,0.75)",
+        margin: {
+          t: 10,
+          b: isMobile ? 40 : 60,
+          l: isPortrait ? 28 : 60,
+          r: isPortrait ? 8 : 20
+        },
+        hoverlabel: {
+          font: { size: isMobile ? 18 : 14 }
+        },
+        xaxis: {
+          title: isMobile ? "" : "날짜",
+          type: "category",
+          fixedrange: true,
+          automargin: true,
+          showgrid: false,
+          zeroline: false,
+          tickfont: { size: isMobile ? 14 : 12, color: "#334155" },
+          titlefont: { size: isMobile ? 18 : 14, color: "#334155" }
+        },
+        yaxis: {
+          title: isMobile ? "" : "승패",
+          fixedrange: true,
+          automargin: true,
+          gridcolor: "rgba(148,163,184,0.18)",
+          zeroline: false,
+          tickfont: { size: isMobile ? 14 : 12, color: "#334155" },
+          titlefont: { size: isMobile ? 18 : 14, color: "#334155" }
+        },
+        showlegend: !isMobile,
         legend: {
           x: 0.01,
           y: 0.99,
           xanchor: "left",
           yanchor: "top",
-          bgcolor: "rgba(255,255,255,0.7)"
+          bgcolor: "rgba(255,255,255,0.82)",
+          bordercolor: "rgba(148,163,184,0.22)",
+          borderwidth: 1,
+          font: { size: 12, color: "#334155" }
         }
       }, {
+        responsive: false,
         scrollZoom: false,
         displaylogo: false,
         modeBarButtonsToRemove: [
@@ -273,6 +570,13 @@
       const frame = Number(e.target.value);
       renderTeamCheckboxes(frame);
       drawGraph(frame);
+    });
+
+    window.addEventListener("resize", () => {
+      if (raw.teams.length > 0) {
+        const frame = Number(document.getElementById("slider").value);
+        drawGraph(frame);
+      }
     });
   </script>
 </body>
