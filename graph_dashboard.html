@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KBO 팀 승패 그래프</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #fafbfc;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #f4f5f7;
+      --border: #e1e4e8;
+      --border-light: #eef0f2;
+      --text-primary: #1b1f23;
+      --text-secondary: #586069;
+      --text-tertiary: #8b949e;
+      --accent: #2563eb;
+      --accent-light: #eff4ff;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 2px 8px rgba(0,0,0,0.06);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      max-width: 100%;
+      overflow-x: hidden;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* --- Topbar --- */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(250,251,252,0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .topbar-logo {
+      width: 28px;
+      height: 28px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: #fff;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+
+    .topbar-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+    }
+
+    .topbar-separator {
+      color: var(--border);
+      font-size: 18px;
+      font-weight: 300;
+    }
+
+    .topbar-subtitle {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .upload-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .upload-btn:hover {
+      background: var(--accent-light);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .upload-btn-icon {
+      font-size: 14px;
+    }
+
+    #csvFile {
+      display: none;
+    }
+
+    /* --- Content --- */
+    .content {
+      padding: 24px 32px 40px;
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    /* --- Chart Card --- */
+    .chart-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    .chart-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 24px 14px;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .chart-card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    .chart-card-body {
+      padding: 8px 16px 12px;
+    }
+
+    #graphWrap {
+      width: 100%;
+      overflow: hidden;
+      border-radius: var(--radius-sm);
+    }
+
+    #graph {
+      width: 100%;
+      height: 560px;
+    }
+
+    /* --- Slider --- */
+    .slider-section {
+      padding: 12px 24px 18px;
+      border-top: 1px solid var(--border-light);
+    }
+
+    .slider-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .slider-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .slider-value {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent);
+      background: var(--accent-light);
+      padding: 2px 10px;
+      border-radius: 999px;
+    }
+
+    #slider {
+      width: 100%;
+      height: 6px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: var(--bg-tertiary);
+      border-radius: 999px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    #slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 3px solid #fff;
+      box-shadow: 0 1px 4px rgba(37,99,235,0.3);
+      cursor: pointer;
+      transition: transform 0.1s ease;
+    }
+
+    #slider::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+    }
+
+    #slider::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 3px solid #fff;
+      box-shadow: 0 1px 4px rgba(37,99,235,0.3);
+      cursor: pointer;
+    }
+
+    /* --- Team Select --- */
+    .team-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+
+    .team-card-header {
+      padding: 16px 24px 12px;
+      border-bottom: 1px solid var(--border-light);
+    }
+
+    .team-card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    #teamSelect {
+      padding: 14px 20px 18px;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px 10px;
+    }
+
+    #teamSelect label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.12s ease;
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+      user-select: none;
+      border: 1px solid transparent;
+    }
+
+    #teamSelect label:hover {
+      background: var(--bg-tertiary);
+    }
+
+    #teamSelect label.checked {
+      background: var(--accent-light);
+      border-color: rgba(37,99,235,0.2);
+    }
+
+    #teamSelect input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    #teamSelect label span {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .team-winrate {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      margin-left: auto;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* --- Mobile Portrait --- */
+    @media (max-width: 767px) and (orientation: portrait) {
+      .topbar {
+        padding: 0 14px;
+        height: 50px;
+      }
+      .topbar-separator,
+      .topbar-subtitle {
+        display: none;
+      }
+      .content {
+        padding: 14px 12px 28px;
+      }
+      .chart-card-header {
+        padding: 14px 16px 10px;
+      }
+      .chart-card-body {
+        padding: 4px 8px 8px;
+      }
+      #graph {
+        height: 380px;
+      }
+      .slider-section {
+        padding: 10px 16px 14px;
+      }
+      #teamSelect {
+        grid-template-columns: repeat(2, 1fr);
+        padding: 12px 14px 16px;
+        gap: 6px;
+      }
+      #teamSelect label {
+        font-size: 15px;
+        padding: 10px 12px;
+      }
+      #teamSelect input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+      }
+      #slider::-webkit-slider-thumb {
+        width: 24px;
+        height: 24px;
+      }
+    }
+
+    /* --- Mobile Landscape --- */
+    @media (max-height: 500px) and (orientation: landscape) {
+      .topbar {
+        padding: 0 14px;
+        height: 42px;
+      }
+      .topbar-separator,
+      .topbar-subtitle {
+        display: none;
+      }
+      .content {
+        padding: 10px 14px 20px;
+      }
+      .chart-card-header {
+        padding: 10px 16px 8px;
+      }
+      .chart-card-body {
+        padding: 4px 8px 6px;
+      }
+      #graph {
+        height: 260px;
+      }
+      .slider-section {
+        padding: 8px 16px 12px;
+      }
+      #teamSelect {
+        grid-template-columns: repeat(5, 1fr);
+        padding: 10px 14px;
+        gap: 4px 8px;
+      }
+      #teamSelect label {
+        font-size: 13px;
+        padding: 5px 8px;
+      }
+    }
+
+    /* --- Tablet --- */
+    @media (min-width: 768px) and (max-width: 1024px) {
+      .content {
+        padding: 20px 20px 32px;
+      }
+      #teamSelect {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-logo">K</div>
+      <span class="topbar-title" id="chartTitle">KBO Analytics</span>
+      <span class="topbar-separator">/</span>
+      <span class="topbar-subtitle" id="topbarTitle">2026 Season</span>
+    </div>
+    <div class="topbar-right">
+      <label class="upload-btn" for="csvFile">
+        <span class="upload-btn-icon">+</span> CSV Upload
+      </label>
+      <input type="file" id="csvFile" accept=".csv">
+    </div>
+  </header>
+
+  <!-- Content -->
+  <div class="content">
+    <!-- Chart -->
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div class="chart-card-title">Win/Loss Trend</div>
+      </div>
+      <div class="chart-card-body">
+        <div id="graphWrap">
+          <div id="graph"></div>
+        </div>
+      </div>
+      <div class="slider-section">
+        <div class="slider-header">
+          <span class="slider-label">Timeline</span>
+          <span class="slider-value" id="sliderDisplay">-</span>
+        </div>
+        <input type="range" id="slider" min="0" max="0" value="0" step="1">
+      </div>
+    </div>
+
+    <!-- Team Select -->
+    <div class="team-card">
+      <div class="team-card-header">
+        <div class="team-card-title">Filter Teams</div>
+      </div>
+      <div id="teamSelect"></div>
+    </div>
+  </div>
+
+  <script>
+    let raw = {
+      teams: [],
+      colors: {},
+      data: {},
+      winRate: {},
+      teamOrder: {}
+    };
+
+    let dateColumns = [];
+    let maxLength = 0;
+
+    function isMobileScreen() {
+      return Math.min(screen.width, screen.height) < 768;
+    }
+
+    function isPortraitMobile() {
+      return isMobileScreen() && window.matchMedia("(orientation: portrait)").matches;
+    }
+
+    function isLandscapeMobile() {
+      return isMobileScreen() && window.matchMedia("(orientation: landscape)").matches;
+    }
+
+    function updateTitle(filename) {
+      const baseName = filename.replace(/\.[^/.]+$/, "");
+      document.getElementById("topbarTitle").textContent = `${baseName} Season`;
+      document.getElementById("chartTitle").textContent = `KBO ${baseName}`;
+    }
+
+    function updateSliderDisplay(frame) {
+      const currentDate = dateColumns[frame] || "-";
+      document.getElementById("sliderDisplay").textContent = currentDate;
+    }
+
+    function parseCSVAndRender(contents) {
+      const data = Papa.parse(contents.trim(), { header: false }).data;
+
+      let lastValidIndex = 0;
+      for (let i = 1; i <= 10; i++) {
+        const row = data[i];
+        if (!row) continue;
+        for (let j = row.length - 1; j >= 1; j--) {
+          if (row[j] !== "" && row[j] !== null && row[j] !== undefined) {
+            lastValidIndex = Math.max(lastValidIndex, j - 1);
+            break;
+          }
+        }
+      }
+
+      const dateRow = data[12];
+      dateColumns = dateRow.slice(1, lastValidIndex + 2).map(mmdd => {
+        const [m, d] = String(mmdd).split('.').map(Number);
+        return `${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      });
+
+      const teamRows = data.slice(13, 23).filter(r => r && r[0] !== "" && r[0] !== undefined);
+      raw.teams = teamRows.map(r => r[0]);
+
+      raw.teamOrder = {};
+      raw.teams.forEach((team, index) => {
+        raw.teamOrder[team] = index;
+      });
+
+      raw.colors = {
+        'KIA': '#ea0029',
+        '삼성': '#074ca1',
+        'LG': '#c30452',
+        '두산': '#1a1748',
+        'KT': '#000000',
+        'SSG': '#ce0e2d',
+        '롯데': '#041e42',
+        '한화': '#fc4e00',
+        'NC': '#315288',
+        '키움': '#570514'
+      };
+
+      raw.data = {};
+      for (const row of teamRows) {
+        const team = row[0];
+        raw.data[team] = [0, ...row.slice(1, lastValidIndex + 2).map(v => parseInt((v || '0').toString().trim(), 10))];
+      }
+
+      const winRateRows = data.slice(24, 34).filter(r => r && r[0] !== "" && r[0] !== undefined);
+      raw.winRate = {};
+      for (const row of winRateRows) {
+        const team = row[0];
+        raw.winRate[team] = [0, ...row.slice(1, lastValidIndex + 2).map(v => parseFloat((v || '0').toString().trim()))];
+      }
+
+      dateColumns = ['Start', ...dateColumns];
+      maxLength = raw.data[raw.teams[0]].length;
+
+      document.getElementById("slider").max = maxLength - 1;
+      document.getElementById("slider").value = maxLength - 1;
+
+      renderTeamCheckboxes(maxLength - 1);
+      updateSliderDisplay(maxLength - 1);
+      drawGraph(maxLength - 1);
+    }
+
+    function getSortedTeams(frame) {
+      return [...raw.teams].sort((a, b) => {
+        const rateA = raw.winRate[a]?.[frame] ?? -1;
+        const rateB = raw.winRate[b]?.[frame] ?? -1;
+        if (rateB !== rateA) return rateB - rateA;
+
+        const marginA = raw.data[a]?.[frame] ?? -Infinity;
+        const marginB = raw.data[b]?.[frame] ?? -Infinity;
+        if (marginB !== marginA) return marginB - marginA;
+
+        return (raw.teamOrder[a] ?? 999) - (raw.teamOrder[b] ?? 999);
+      });
+    }
+
+    function renderTeamCheckboxes(frame) {
+      const teamSelect = document.getElementById("teamSelect");
+      const checkedMap = {};
+      document.querySelectorAll('#teamSelect input[type="checkbox"]').forEach(cb => {
+        checkedMap[cb.value] = cb.checked;
+      });
+
+      const sortedTeams = getSortedTeams(frame);
+      teamSelect.innerHTML = "";
+
+      sortedTeams.forEach(team => {
+        const winRate = raw.winRate[team]?.[frame] ?? 0;
+
+        const label = document.createElement("label");
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = team;
+        checkbox.checked = checkedMap[team] || false;
+
+        if (checkbox.checked) label.classList.add('checked');
+
+        checkbox.addEventListener("change", () => {
+          label.classList.toggle('checked', checkbox.checked);
+          const currentFrame = Number(document.getElementById("slider").value);
+          drawGraph(currentFrame);
+        });
+
+        const teamSpan = document.createElement("span");
+        teamSpan.textContent = team;
+        teamSpan.style.color = raw.colors[team] || "#000000";
+
+        const rateSpan = document.createElement("span");
+        rateSpan.className = "team-winrate";
+        rateSpan.textContent = winRate.toFixed(3);
+
+        label.appendChild(checkbox);
+        label.appendChild(teamSpan);
+        label.appendChild(rateSpan);
+        teamSelect.appendChild(label);
+      });
+    }
+
+    function drawGraph(frame) {
+      const graphEl = document.getElementById("graph");
+      const graphWrapEl = document.getElementById("graphWrap");
+
+      const selected = Array.from(
+        document.querySelectorAll('#teamSelect input:checked')
+      ).map(cb => cb.value);
+
+      const sortedTeams = getSortedTeams(frame);
+      const drawingOrder = [...sortedTeams].reverse();
+
+      const isMobile = isMobileScreen();
+      const isPortrait = isPortraitMobile();
+      const isLandscape = isLandscapeMobile();
+
+      const graphHeight = isLandscape ? 260 : (isPortrait ? 380 : 560);
+
+      const wrapWidth = Math.floor(graphWrapEl.getBoundingClientRect().width);
+      const viewportWidth = Math.floor(window.innerWidth);
+      const graphWidth = isLandscape
+        ? Math.min(wrapWidth, viewportWidth - 20)
+        : wrapWidth;
+
+      const traces = drawingOrder.map(team => {
+        const x = dateColumns.slice(0, frame + 1);
+        const y = raw.data[team].slice(0, frame + 1);
+
+        return {
+          x, y,
+          type: "scatter",
+          mode: "lines",
+          name: team,
+          line: {
+            color: raw.colors[team],
+            width: isMobile ? 3 : 2.5,
+            shape: 'spline',
+            smoothing: 0.8
+          },
+          opacity: selected.length === 0 || selected.includes(team) ? 1 : 0.12,
+          hoverlabel: {
+            font: { size: isMobile ? 16 : 13, family: 'Inter, sans-serif' },
+            bgcolor: '#fff',
+            bordercolor: raw.colors[team]
+          }
+        };
+      });
+
+      Plotly.newPlot(graphEl, traces, {
+        width: graphWidth,
+        height: graphHeight,
+        autosize: false,
+        paper_bgcolor: "rgba(0,0,0,0)",
+        plot_bgcolor: "rgba(0,0,0,0)",
+        margin: {
+          t: 8,
+          b: isMobile ? 36 : 44,
+          l: isPortrait ? 28 : 48,
+          r: isPortrait ? 8 : 16
+        },
+        hoverlabel: {
+          font: { size: isMobile ? 16 : 13, family: 'Inter, sans-serif' }
+        },
+        xaxis: {
+          title: "",
+          type: "category",
+          fixedrange: true,
+          automargin: true,
+          showgrid: false,
+          zeroline: false,
+          showline: true,
+          linecolor: 'rgba(0,0,0,0.06)',
+          tickfont: { size: isMobile ? 12 : 11, color: '#8b949e', family: 'Inter, sans-serif' }
+        },
+        yaxis: {
+          title: "",
+          fixedrange: true,
+          automargin: true,
+          gridcolor: "rgba(0,0,0,0.04)",
+          gridwidth: 1,
+          zeroline: true,
+          zerolinecolor: "rgba(0,0,0,0.1)",
+          zerolinewidth: 1,
+          showline: false,
+          tickfont: { size: isMobile ? 12 : 11, color: '#8b949e', family: 'Inter, sans-serif' }
+        },
+        showlegend: !isMobile,
+        legend: {
+          x: 0.01,
+          y: 0.99,
+          xanchor: "left",
+          yanchor: "top",
+          bgcolor: "rgba(255,255,255,0.9)",
+          bordercolor: "rgba(0,0,0,0.06)",
+          borderwidth: 1,
+          font: { size: 12, color: '#586069', family: 'Inter, sans-serif' },
+          itemsizing: 'constant'
+        }
+      }, {
+        responsive: false,
+        scrollZoom: false,
+        displaylogo: false,
+        displayModeBar: false
+      });
+    }
+
+    /* --- Init --- */
+    const defaultCsvName = "2026.csv";
+
+    fetch('./' + defaultCsvName + '?v=' + new Date().getTime())
+      .then(response => response.text())
+      .then(csv => {
+        updateTitle(defaultCsvName);
+        parseCSVAndRender(csv);
+      })
+      .catch(error => {
+        console.error("CSV load failed:", error);
+      });
+
+    document.getElementById("csvFile").addEventListener("change", function(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        updateTitle(file.name);
+        parseCSVAndRender(e.target.result);
+      };
+      reader.readAsText(file);
+    });
+
+    document.getElementById("slider").addEventListener("input", (e) => {
+      const frame = Number(e.target.value);
+      renderTeamCheckboxes(frame);
+      updateSliderDisplay(frame);
+      drawGraph(frame);
+    });
+
+    window.addEventListener("resize", () => {
+      if (raw.teams.length > 0) {
+        const frame = Number(document.getElementById("slider").value);
+        drawGraph(frame);
+      }
+    });
+  </script>
+</body>
+</html>
