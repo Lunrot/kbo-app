@@ -612,6 +612,7 @@
         const rateSpan = document.createElement("span");
         rateSpan.className = "team-winrate";
         rateSpan.textContent = winRate.toFixed(3);
+        rateSpan.style.color = raw.colors[team] || "#000000";
 
         label.appendChild(checkbox);
         label.appendChild(teamSpan);
