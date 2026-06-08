@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KBO 팀 승패 그래프</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      max-width: 100%;
+      overflow-x: hidden;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", sans-serif;
+      margin: 0;
+      padding: 14px 20px 28px 20px;
+      background: linear-gradient(180deg, #f7f9fc 0%, #eef3f8 100%);
+      color: #1f2937;
+    }
+
+    .page {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .title-badge {
+      display: inline-block;
+      margin-bottom: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #111827;
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    h2 {
+      margin: 0 0 14px 0;
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #0f172a;
+    }
+
+    .section-card {
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid #e5e7eb;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+      padding: 14px 16px;
+      backdrop-filter: blur(6px);
+    }
+
+    .section-card + .section-card {
+      margin-top: 16px;
+    }
+
+    #graphWrap {
+      width: 100%;
+      max-width: 100%;
+      overflow: hidden;
+      border-radius: 16px;
+    }
+
+    #graph {
+      width: 100%;
+      max-width: 100%;
+      height: 700px;
+      overflow: hidden;
+      border-radius: 16px;
+    }
+
+    #controls {
+      margin-top: 0;
+    }
+
+    .controls-title,
+    .upload-title {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      font-weight: 700;
+      color: #475569;
+    }
+
+    .range-wrap {
+      width: 80%;
+      margin: 0 auto;
+    }
+
+    .range-slider {
+      position: relative;
+      width: 100%;
+      height: 24px;
+    }
+
+    .range-track {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 6px;
+      transform: translateY(-50%);
+      background: #e2e8f0;
+      border-radius: 999px;
+    }
+
+    .range-fill {
+      position: absolute;
+      top: 50%;
+      height: 6px;
+      transform: translateY(-50%);
+      background: #2563eb;
+      border-radius: 999px;
+    }
+
+    .range-slider input[type="range"] {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 24px;
+      margin: 0;
+      background: none;
+      pointer-events: none;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .range-slider input[type="range"]::-webkit-slider-runnable-track {
+      background: none;
+      border: none;
+    }
+
+    .range-slider input[type="range"]::-moz-range-track {
+      background: none;
+      border: none;
+    }
+
+    .range-slider input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      pointer-events: auto;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 3px solid #2563eb;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    }
+
+    .range-slider input[type="range"]::-moz-range-thumb {
+      pointer-events: auto;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 3px solid #2563eb;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    }
+
+    #startSlider::-webkit-slider-thumb {
+      border-color: #16a34a;
+    }
+
+    #startSlider::-moz-range-thumb {
+      border-color: #16a34a;
+    }
+
+    .range-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #334155;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #teamSelect {
+      margin-top: 16px;
+      width: 80%;
+      margin-left: auto;
+      margin-right: auto;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(110px, 1fr));
+      gap: 8px 12px;
+    }
+
+    #teamSelect label {
+      display: flex;
+      align-items: center;
+      white-space: nowrap;
+      font-size: 16px;
+      line-height: 1.2;
+      min-width: 0;
+      padding: 1px 1px;
+      border-radius: 12px;
+      transition: background-color 0.15s ease, transform 0.15s ease;
+    }
+
+    #teamSelect label:hover {
+      background: rgba(37, 99, 235, 0.06);
+      transform: translateY(-1px);
+    }
+
+    #teamSelect input[type="checkbox"] {
+      transform: scale(1.1);
+      margin-right: 6px;
+      flex-shrink: 0;
+    }
+
+    #teamSelect label span {
+      margin-left: 2px;
+      font-weight: 700;
+    }
+
+    #uploadArea {
+      margin-top: 0;
+      font-size: 16px;
+    }
+
+    .upload-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    #csvFile {
+      font-size: 15px;
+      padding: 6px 0;
+    }
+
+    /* 스마트폰 세로 */
+    @media (max-width: 767px) and (orientation: portrait) {
+      body {
+        padding: 10px 10px 20px 10px;
+      }
+
+      h2 {
+        font-size: 24px;
+        margin: 0 0 12px 0;
+      }
+
+      .section-card {
+        border-radius: 18px;
+        padding: 12px 12px;
+      }
+
+      #graphWrap {
+        width: calc(100vw - 20px);
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      #graph {
+        height: 480px;
+      }
+
+      .range-wrap {
+        width: 96%;
+      }
+
+      .range-slider {
+        height: 34px;
+      }
+
+      .range-slider input[type="range"] {
+        height: 34px;
+      }
+
+      .range-slider input[type="range"]::-webkit-slider-thumb {
+        width: 26px;
+        height: 26px;
+      }
+
+      .range-slider input[type="range"]::-moz-range-thumb {
+        width: 26px;
+        height: 26px;
+      }
+
+      .range-labels {
+        font-size: 15px;
+      }
+
+      #teamSelect {
+        width: 96%;
+        grid-template-columns: repeat(2, minmax(140px, 1fr));
+        gap: 10px 12px;
+      }
+
+      #teamSelect label {
+        font-size: 18px;
+        line-height: 1.4;
+        padding: 7px 8px;
+      }
+
+      #teamSelect input[type="checkbox"] {
+        transform: scale(1.35);
+        margin-right: 8px;
+      }
+
+      #uploadArea {
+        font-size: 18px;
+      }
+
+      #csvFile {
+        font-size: 16px;
+      }
+    }
+
+    /* 스마트폰 가로 */
+    @media (max-height: 500px) and (orientation: landscape) {
+      body {
+        padding: 8px 10px 18px 10px;
+      }
+
+      h2 {
+        font-size: 20px;
+        margin: 0 0 10px 0;
+      }
+
+      .section-card {
+        padding: 10px 12px;
+        border-radius: 16px;
+      }
+
+      #graphWrap {
+        width: calc(100vw - 20px);
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      #graph {
+        height: 300px;
+      }
+
+      .range-wrap {
+        width: 96%;
+      }
+
+      .range-slider input[type="range"]::-webkit-slider-thumb {
+        width: 22px;
+        height: 22px;
+      }
+
+      .range-slider input[type="range"]::-moz-range-thumb {
+        width: 22px;
+        height: 22px;
+      }
+
+      #teamSelect {
+        width: 96%;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 8px 10px;
+        align-items: center;
+      }
+
+      #teamSelect label {
+        font-size: 15px;
+        line-height: 1.2;
+        min-width: 0;
+        padding: 5px 6px;
+      }
+
+      #teamSelect input[type="checkbox"] {
+        transform: scale(1.05);
+        margin-right: 6px;
+        flex-shrink: 0;
+      }
+
+      #uploadArea {
+        font-size: 16px;
+      }
+
+      #csvFile {
+        font-size: 15px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">    
+    <h2 id="chartTitle" class="title-badge">2026 KBO 팀 승패 그래프</h2>
+
+    <div class="section-card">
+      <div id="graphWrap">
+        <div id="graph"></div>
+      </div>
+    </div>
+
+    <div id="controls" class="section-card">
+      <div class="controls-title">팀 선택 / 기간 조절</div>
+      <div class="range-wrap">
+        <div class="range-slider">
+          <div class="range-track"></div>
+          <div class="range-fill" id="rangeFill"></div>
+          <input type="range" id="startSlider" min="0" max="0" value="0" step="1">
+          <input type="range" id="endSlider" min="0" max="0" value="0" step="1">
+        </div>
+        <div class="range-labels">
+          <span id="startLabel">-</span>
+          <span id="endLabel">-</span>
+        </div>
+      </div>
+      <div id="teamSelect"></div>
+    </div>
+
+    <div id="uploadArea" class="section-card">
+      <div class="upload-title">데이터 파일</div>
+      <div class="upload-row">
+        <label for="csvFile">📂 CSV 업로드:</label>
+        <input type="file" id="csvFile" accept=".csv">
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let raw = {
+      teams: [],
+      colors: {},
+      data: {},
+      winRate: {},
+      teamOrder: {},
+      detail: {},   // detail[team][MM-DD] = ["KIA 6 : 7 SSG (원정·패)", ...]
+      dow: {}       // dow[MM-DD] = "토"
+    };
+
+    let dateColumns = [];
+    let maxLength = 0;
+
+    function isMobileScreen() {
+      return Math.min(screen.width, screen.height) < 768;
+    }
+
+    function isPortraitMobile() {
+      return isMobileScreen() && window.matchMedia("(orientation: portrait)").matches;
+    }
+
+    function isLandscapeMobile() {
+      return isMobileScreen() && window.matchMedia("(orientation: landscape)").matches;
+    }
+
+    function updateTitle(filename) {
+      const titleEl = document.getElementById("chartTitle");
+      const baseName = filename.replace(/\.[^/.]+$/, "");
+      titleEl.textContent = `${baseName} KBO 팀 승패 그래프`;
+    }
+
+    function getCurrentRange() {
+      const start = Number(document.getElementById("startSlider").value);
+      const end = Number(document.getElementById("endSlider").value);
+      return { start, end };
+    }
+
+    function updateSliderLabels(start, end) {
+      document.getElementById("startLabel").textContent = dateColumns[start] ?? "-";
+      document.getElementById("endLabel").textContent = dateColumns[end] ?? "-";
+    }
+
+    function updateRangeUI(start, end) {
+      const startEl = document.getElementById("startSlider");
+      const endEl = document.getElementById("endSlider");
+      const fill = document.getElementById("rangeFill");
+      const max = Number(endEl.max) || 1;
+
+      const leftPct = (start / max) * 100;
+      const rightPct = (end / max) * 100;
+      fill.style.left = leftPct + "%";
+      fill.style.width = Math.max(0, rightPct - leftPct) + "%";
+
+      // 두 손잡이가 겹쳐도 둘 다 잡을 수 있도록 z-index 조정
+      if (start > max / 2) {
+        startEl.style.zIndex = 5;
+        endEl.style.zIndex = 4;
+      } else {
+        startEl.style.zIndex = 4;
+        endEl.style.zIndex = 5;
+      }
+    }
+
+    // 2026.csv의 상세 섹션(섹션4: 날짜,요일,경기,원정팀,원정점수,홈팀,홈점수)을 읽어
+    // raw.detail / raw.dow 를 채운다. 상세 섹션이 없으면 비워 둔다(이전 형식 호환).
+    function parseDetailSection(data) {
+      raw.detail = {};
+      raw.dow = {};
+
+      let start = -1;
+      for (let i = 0; i < data.length; i++) {
+        const r = data[i];
+        if (r && r[0] === "날짜" && r[1] === "요일" && r[2] === "경기") {
+          start = i + 1;
+          break;
+        }
+      }
+      if (start === -1) return;
+
+      for (let i = start; i < data.length; i++) {
+        const r = data[i];
+        if (!r || !r[0]) continue;
+
+        const dateStr = String(r[0]).trim();        // YYYY-MM-DD
+        const dow = String(r[1] ?? "").trim();
+        const awayTeam = String(r[3] ?? "").trim();
+        const awayScore = parseInt(r[4], 10);
+        const homeTeam = String(r[5] ?? "").trim();
+        const homeScore = parseInt(r[6], 10);
+
+        const parts = dateStr.split("-");
+        if (parts.length < 3) continue;
+        const label = `${parts[1]}-${parts[2]}`;     // MM-DD (dateColumns와 동일)
+        if (dow) raw.dow[label] = dow;
+
+        if (!awayTeam || !homeTeam || Number.isNaN(awayScore) || Number.isNaN(homeScore)) continue;
+
+        // CSV 순서(원정팀 먼저) 그대로. 양 팀 라인 모두 같은 문자열을 보여준다.
+        const line = `${awayTeam} ${awayScore} : ${homeScore} ${homeTeam}`;
+        addDetail(awayTeam, label, line);
+        addDetail(homeTeam, label, line);
+      }
+    }
+
+    function addDetail(team, label, line) {
+      if (!raw.detail[team]) raw.detail[team] = {};
+      if (!raw.detail[team][label]) raw.detail[team][label] = [];
+      raw.detail[team][label].push(line);
+    }
+
+    // 특정 팀의 특정 날짜 점수 기록 → 호버 툴팁 텍스트
+    function buildHoverText(team, label) {
+      const games = raw.detail[team]?.[label];
+      if (!games || games.length === 0) {
+        return label === "시작" ? "시즌 시작" : label;
+      }
+      const dow = raw.dow[label];
+      const head = dow ? `${label} (${dow})` : label;
+      return head + "<br>" + games.join("<br>");
+    }
+
+    function parseCSVAndRender(contents) {
+      const data = Papa.parse(contents.trim(), { header: false }).data;
+
+      let lastValidIndex = 0;
+      for (let i = 1; i <= 10; i++) {
+        const row = data[i];
+        if (!row) continue;
+
+        for (let j = row.length - 1; j >= 1; j--) {
+          if (row[j] !== "" && row[j] !== null && row[j] !== undefined) {
+            lastValidIndex = Math.max(lastValidIndex, j - 1);
+            break;
+          }
+        }
+      }
+
+      const dateRow = data[12];
+      dateColumns = dateRow.slice(1, lastValidIndex + 2).map(mmdd => {
+        const [m, d] = String(mmdd).split('.').map(Number);
+        return `${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      });
+
+      const teamRows = data.slice(13, 23).filter(r => r && r[0] !== "" && r[0] !== undefined);
+      raw.teams = teamRows.map(r => r[0]);
+
+      raw.teamOrder = {};
+      raw.teams.forEach((team, index) => {
+        raw.teamOrder[team] = index;
+      });
+
+      raw.colors = {
+        'KIA': '#ea0029',
+        '삼성': '#074ca1',
+        'LG': '#c30452',
+        '두산': '#1a1748',
+        'KT': '#000000',
+        'SSG': '#ce0e2d',
+        '롯데': '#041e42',
+        '한화': '#fc4e00',
+        'NC': '#315288',
+        '키움': '#570514'
+      };
+
+      raw.data = {};
+      for (const row of teamRows) {
+        const team = row[0];
+        raw.data[team] = [0, ...row.slice(1, lastValidIndex + 2).map(v => parseInt((v || '0').toString().trim(), 10))];
+      }
+
+      const winRateRows = data.slice(24, 34).filter(r => r && r[0] !== "" && r[0] !== undefined);
+
+      raw.winRate = {};
+      for (const row of winRateRows) {
+        const team = row[0];
+        raw.winRate[team] = [0, ...row.slice(1, lastValidIndex + 2).map(v => parseFloat((v || '0').toString().trim()))];
+      }
+
+      parseDetailSection(data);
+
+      dateColumns = ['시작', ...dateColumns];
+      maxLength = raw.data[raw.teams[0]].length;
+
+      const startSliderEl = document.getElementById("startSlider");
+      const endSliderEl = document.getElementById("endSlider");
+      startSliderEl.max = maxLength - 1;
+      startSliderEl.value = 0;
+      endSliderEl.max = maxLength - 1;
+      endSliderEl.value = maxLength - 1;
+
+      updateSliderLabels(0, maxLength - 1);
+      updateRangeUI(0, maxLength - 1);
+      renderTeamCheckboxes(maxLength - 1);
+      drawGraph(0, maxLength - 1);
+    }
+
+    function getSortedTeams(frame) {
+      return [...raw.teams].sort((a, b) => {
+        const rateA = raw.winRate[a]?.[frame] ?? -1;
+        const rateB = raw.winRate[b]?.[frame] ?? -1;
+        if (rateB !== rateA) return rateB - rateA;
+
+        const marginA = raw.data[a]?.[frame] ?? -Infinity;
+        const marginB = raw.data[b]?.[frame] ?? -Infinity;
+        if (marginB !== marginA) return marginB - marginA;
+
+        return (raw.teamOrder[a] ?? 999) - (raw.teamOrder[b] ?? 999);
+      });
+    }
+
+    function renderTeamCheckboxes(frame) {
+      const teamSelect = document.getElementById("teamSelect");
+
+      const checkedMap = {};
+      document.querySelectorAll('#teamSelect input[type="checkbox"]').forEach(cb => {
+        checkedMap[cb.value] = cb.checked;
+      });
+
+      const sortedTeams = getSortedTeams(frame);
+      teamSelect.innerHTML = "";
+
+      sortedTeams.forEach(team => {
+        const winRate = raw.winRate[team]?.[frame] ?? 0;
+
+        const label = document.createElement("label");
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = team;
+        checkbox.checked = checkedMap[team] || false;
+
+        checkbox.addEventListener("change", () => {
+          const { start, end } = getCurrentRange();
+          drawGraph(start, end);
+        });
+
+        const textSpan = document.createElement("span");
+        textSpan.textContent = `${team} ${winRate.toFixed(3)}`;
+        textSpan.style.color = raw.colors[team] || "#000000";
+
+        label.appendChild(checkbox);
+        label.appendChild(textSpan);
+        teamSelect.appendChild(label);
+      });
+    }
+
+    // 달별 배경: 진한 회색 / 흐린 회색을 번갈아가며 표시
+    const MONTH_BG_ALT = [
+      'rgba(110,110,110,0.15)',  // 진한 회색
+      'rgba(160,160,160,0.07)'   // 흐린 회색
+    ];
+
+    function getMonthOf(label) {
+      // label 예: "03-28". "시작" 같은 비날짜는 null
+      const m = /^(\d{2})-\d{2}$/.exec(label);
+      return m ? m[1] : null;
+    }
+
+    // 보이는 x 카테고리에서 같은 달끼리 연속 구간을 묶어 배경 밴드/라벨 생성
+    function buildMonthBands(visibleDates) {
+      const shapes = [];
+      const annotations = [];
+
+      // 각 인덱스의 달 계산 ("시작"은 바로 다음 날짜의 달을 따라감)
+      const months = visibleDates.map(getMonthOf);
+      for (let i = 0; i < months.length; i++) {
+        if (months[i] === null) {
+          months[i] = months[i + 1] ?? months[i - 1] ?? null;
+        }
+      }
+
+      let start = 0;
+      let bandIndex = 0;
+      for (let i = 1; i <= months.length; i++) {
+        if (i === months.length || months[i] !== months[start]) {
+          const month = months[start];
+          if (month) {
+            shapes.push({
+              type: "rect",
+              xref: "x",
+              yref: "paper",
+              x0: start - 0.5,
+              x1: (i - 1) + 0.5,
+              y0: 0,
+              y1: 1,
+              fillcolor: MONTH_BG_ALT[bandIndex % 2],
+              line: { width: 0 },
+              layer: "below"
+            });
+            bandIndex++;
+            annotations.push({
+              xref: "x",
+              yref: "paper",
+              x: (start + (i - 1)) / 2,
+              y: 1,
+              yanchor: "top",
+              text: `${parseInt(month, 10)}월`,
+              showarrow: false,
+              font: { size: 11, color: "rgba(71,85,105,0.7)" }
+            });
+          }
+          start = i;
+        }
+      }
+
+      return { shapes, annotations };
+    }
+
+    function drawGraph(startFrame, endFrame) {
+      const graphEl = document.getElementById("graph");
+      const graphWrapEl = document.getElementById("graphWrap");
+
+      const selected = Array.from(
+        document.querySelectorAll('#teamSelect input:checked')
+      ).map(cb => cb.value);
+
+      const sortedTeams = getSortedTeams(endFrame);
+      const drawingOrder = [...sortedTeams].reverse();
+
+      const isMobile = isMobileScreen();
+      const isPortrait = isPortraitMobile();
+      const isLandscape = isLandscapeMobile();
+
+      const graphHeight = isLandscape ? 300 : (isPortrait ? 480 : 700);
+
+      const wrapWidth = Math.floor(graphWrapEl.getBoundingClientRect().width);
+      const viewportWidth = Math.floor(window.innerWidth);
+      const graphWidth = isLandscape
+        ? Math.min(wrapWidth, viewportWidth - 20)
+        : wrapWidth;
+
+      const hasSelection = selected.length > 0;
+
+      const traces = drawingOrder.map(team => {
+        const x = dateColumns.slice(startFrame, endFrame + 1);
+        const y = raw.data[team].slice(startFrame, endFrame + 1);
+        const text = x.map(label => buildHoverText(team, label));
+        const isSelected = selected.includes(team);
+
+        const trace = {
+          x: x,
+          y: y,
+          text: text,
+          type: "scatter",
+          mode: "lines",
+          name: team,
+          line: { color: raw.colors[team], width: isMobile ? 4 : 3 },
+          opacity: !hasSelection || isSelected ? 1 : 0.2,
+          hoverlabel: {
+            font: {
+              size: isMobile ? 18 : 14
+            }
+          }
+        };
+
+        // 팀이 선택된 경우: 선택되지 않은(흐린) 라인은 호버에서 제외해
+        // 라인이 겹쳐도 선택된 팀의 툴팁만 뜨도록 한다.
+        if (hasSelection && !isSelected) {
+          trace.hoverinfo = "skip";
+        } else {
+          trace.hovertemplate = "%{text}<extra></extra>";
+        }
+
+        return trace;
+      });
+
+      const { shapes: monthShapes, annotations: monthAnnotations } = buildMonthBands(dateColumns.slice(startFrame, endFrame + 1));
+
+      Plotly.newPlot(graphEl, traces, {
+        width: graphWidth,
+        height: graphHeight,
+        autosize: false,
+        paper_bgcolor: "rgba(0,0,0,0)",
+        plot_bgcolor: "rgba(248,250,252,0.75)",
+        hovermode: "closest",
+        shapes: monthShapes,
+        annotations: monthAnnotations,
+        margin: {
+          t: 10,
+          b: isMobile ? 40 : 60,
+          l: isPortrait ? 28 : 60,
+          r: isPortrait ? 8 : 20
+        },
+        hoverlabel: {
+          font: { size: isMobile ? 18 : 14 }
+        },
+        xaxis: {
+          title: isMobile ? "" : "날짜",
+          type: "category",
+          fixedrange: true,
+          automargin: true,
+          showgrid: false,
+          zeroline: false,
+          tickfont: { size: isMobile ? 14 : 12, color: "#334155" },
+          titlefont: { size: isMobile ? 18 : 14, color: "#334155" }
+        },
+        yaxis: {
+          title: isMobile ? "" : "승패",
+          fixedrange: true,
+          automargin: true,
+          gridcolor: "rgba(148,163,184,0.8)",
+          zeroline: false,
+          tickfont: { size: isMobile ? 14 : 12, color: "#334155" },
+          titlefont: { size: isMobile ? 18 : 14, color: "#334155" }
+        },
+        showlegend: !isMobile,
+        legend: {
+          traceorder: "reversed",
+          x: 0.01,
+          y: 0.99,
+          xanchor: "left",
+          yanchor: "top",
+          bgcolor: "rgba(255,255,255,0.82)",
+          bordercolor: "rgba(148,163,184,0.22)",
+          borderwidth: 1,
+          font: { size: 12, color: "#334155" }
+        }
+      }, {
+        responsive: false,
+        scrollZoom: false,
+        displaylogo: false,
+        modeBarButtonsToRemove: [
+          "zoom2d", "pan2d", "select2d", "lasso2d",
+          "zoomIn2d", "zoomOut2d", "autoScale2d", "resetScale2d"
+        ]
+      });
+    }
+
+    const defaultCsvName = "2026.csv";
+
+    fetch('./' + defaultCsvName + '?v=' + new Date().getTime())
+      .then(response => response.text())
+      .then(csv => {
+        updateTitle(defaultCsvName);
+        parseCSVAndRender(csv);
+      })
+      .catch(error => {
+        console.error("CSV 로딩 실패:", error);
+      });
+
+    document.getElementById("csvFile").addEventListener("change", function(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        updateTitle(file.name);
+        parseCSVAndRender(e.target.result);
+      };
+      reader.readAsText(file);
+    });
+
+    const startSliderEl = document.getElementById("startSlider");
+    const endSliderEl = document.getElementById("endSlider");
+
+    function applyRange() {
+      const { start, end } = getCurrentRange();
+      updateSliderLabels(start, end);
+      updateRangeUI(start, end);
+      renderTeamCheckboxes(end);
+      drawGraph(start, end);
+    }
+
+    startSliderEl.addEventListener("input", () => {
+      // 시작이 종료를 넘지 않도록 보정
+      if (Number(startSliderEl.value) > Number(endSliderEl.value)) {
+        endSliderEl.value = startSliderEl.value;
+      }
+      applyRange();
+    });
+
+    endSliderEl.addEventListener("input", () => {
+      // 종료가 시작보다 앞서지 않도록 보정
+      if (Number(endSliderEl.value) < Number(startSliderEl.value)) {
+        startSliderEl.value = endSliderEl.value;
+      }
+      applyRange();
+    });
+
+    window.addEventListener("resize", () => {
+      if (raw.teams.length > 0) {
+        const { start, end } = getCurrentRange();
+        drawGraph(start, end);
+      }
+    });
+  </script>
+</body>
+</html>
