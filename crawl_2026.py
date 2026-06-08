@@ -2,7 +2,12 @@
 """
 KBO 2026 경기 결과 크롤러
 https://sports.daum.net/prx/hermes/api/game/schedule.json 을 직접 호출하여
-2026 시즌 페넌트레이스 경기 결과를 수집하고 2026.csv를 생성/업데이트합니다.
+2026 시즌 페넌트레이스 경기 결과를 수집하고, 한 번의 실행으로 두 파일을 만든다.
+
+  - 2026.csv         : graph.html 전용 형식 (개별 결과 / 누적 승패 / 누적 승률)
+  - 2026_detail.csv  : 사람이 읽기 쉬운 경기별 상세 (날짜·요일·경기·양 팀·점수)
+
+API 는 월별로 한 번씩만 호출하고, 그 결과를 두 파일에 각각 증분 반영한다.
 
 사용법:
   python3 crawl_2026.py
@@ -26,6 +31,10 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_FILE = os.path.join(SCRIPT_DIR, '2026.csv')
 YEAR = 2026
 MONTHS = list(range(3, 11))  # 3월 ~ 10월 (시즌이 10월 초까지 이어질 수 있음)
+
+# 상세 섹션(섹션4) 헤더 — 2026.csv 본문 뒤에 이어 붙는다
+DETAIL_HEADER = ['날짜', '요일', '경기', '원정팀', '원정점수', '홈팀', '홈점수']
+WEEKDAYS = '월화수목금토일'  # date.weekday(): 월=0 ... 일=6
 
 API_URL = "https://sports.daum.net/prx/hermes/api/game/schedule.json"
 HEADERS = {
@@ -58,7 +67,7 @@ def parse_pennant_games(data: dict, year: int, month: int, cutoff: date) -> list
     """
     API 응답에서 페넌트레이스 완료 경기만 추출합니다.
     반환: list of dict
-      {year, month, day, game_no, home_team, away_team, home_score, away_score}
+      {year, month, day, game_id, start_time, home_team, away_team, home_score, away_score}
     """
     games = []
     schedule = data.get('schedule', {})
@@ -105,7 +114,29 @@ def parse_pennant_games(data: dict, year: int, month: int, cutoff: date) -> list
 
     return games
 
-# ─────────────────────────── 경기 → 컬럼/결과 변환 ───────────────────────────
+
+def fetch_all_games(year: int, months: list, cutoff: date) -> list:
+    """모든 과거 달의 완료된 페넌트레이스 경기를 수집해 하나의 리스트로 반환."""
+    all_games = []
+    for month in months:
+        if date(year, month, 1) > cutoff:
+            print(f"[{month}월] 미래 달 - 스킵")
+            continue
+
+        print(f"[{month}월] API 호출 중...", end=' ', flush=True)
+        try:
+            data = fetch_month(year, month)
+        except Exception as e:
+            print(f"실패: {e}")
+            continue
+
+        games = parse_pennant_games(data, year, month, cutoff)
+        all_games.extend(games)
+        print(f"페넌트레이스 {len(games)}경기")
+
+    return all_games
+
+# ─────────────────────────── 경기 → 컬럼/결과 변환 (2026.csv용) ───────────────
 
 def col_key(month: int, day: int, game_no: int = 1) -> str:
     """날짜 컬럼 키. 더블헤더는 M.D.N 형식."""
@@ -194,6 +225,78 @@ def games_to_cols_results(games: list):
 
     return date_cols, team_results
 
+# ─────────────────────────── 경기 → 상세 행 변환 (2026_detail.csv용) ──────────
+
+def assign_game_numbers(games: list):
+    """
+    경기 목록 → [(game, game_no), ...]
+
+    games_to_cols_results 와 동일한 더블헤더 판별 규칙을 '경기 단위 번호 매기기'로
+    옮긴 것이다.
+      - 한 팀이 하루에 2경기 이상 출전하면 더블헤더
+      - 시작 시각이 2종류 이상이면: 이른 시각 = 1, 나머지 = 2
+      - 시작 시각이 같으면: 같은 팀 쌍 내에서 game_id 순으로 1, 2
+      - 더블헤더가 아니면 모두 1
+    """
+    day_map = defaultdict(list)
+    for g in games:
+        day_map[(g['month'], g['day'])].append(g)
+
+    numbered = []
+
+    for (mo, d) in sorted(day_map.keys()):
+        day_games = day_map[(mo, d)]
+
+        is_dh = any(
+            sum(1 for g in day_games
+                if g['home_team'] == t or g['away_team'] == t) >= 2
+            for t in TEAMS
+        )
+
+        if not is_dh:
+            for g in day_games:
+                numbered.append((g, 1))
+            continue
+
+        times = sorted(set(g['start_time'] for g in day_games))
+
+        if len(times) >= 2:
+            # 시작 시각 기준 분리: 가장 이른 시각 = 1, 나머지 = 2
+            t1 = times[0]
+            for g in day_games:
+                numbered.append((g, 1 if g['start_time'] == t1 else 2))
+        else:
+            # 시각이 같으면 같은 팀 쌍 내에서 game_id 순으로 1, 2
+            pairs = defaultdict(list)
+            for g in day_games:
+                key = tuple(sorted([g['home_team'], g['away_team']]))
+                pairs[key].append(g)
+            for pl in pairs.values():
+                pl.sort(key=lambda g: g['game_id'])
+                for idx, g in enumerate(pl, start=1):
+                    numbered.append((g, idx))
+
+    return numbered
+
+
+def game_to_row(game: dict, game_no: int) -> list:
+    """경기 dict + 경기번호 → 상세 섹션 한 행."""
+    d = date(game['year'], game['month'], game['day'])
+    return [
+        d.strftime('%Y-%m-%d'),
+        WEEKDAYS[d.weekday()],
+        str(game_no),
+        game['away_team'],
+        str(game['away_score']),
+        game['home_team'],
+        str(game['home_score']),
+    ]
+
+
+def detail_row_sort_key(row: list):
+    """(날짜, 경기번호) 정렬 키."""
+    return (row[0], int(row[2]) if str(row[2]).isdigit() else 0)
+
 # ─────────────────────────── CSV I/O ──────────────────────────────────────────
 
 def load_existing_csv():
@@ -218,12 +321,13 @@ def load_existing_csv():
     return date_cols, results
 
 
-def write_csv(date_cols: list, team_results: dict):
+def write_csv(date_cols: list, team_results: dict, detail_rows: list):
     """
-    CSV를 3개 섹션으로 저장합니다.
+    2026.csv를 4개 섹션으로 저장합니다.
       섹션1: 날짜 헤더 + 팀별 개별 경기 결과
       섹션2: 날짜 헤더 + 팀별 누적 승패 마진
       섹션3: 팀별 누적 승률
+      섹션4: 경기별 상세 (날짜·요일·경기·양 팀·점수)  ← graph.html 본문은 안 읽음
     """
     # 누적 승패 마진
     cumul = {t: {} for t in TEAMS}
@@ -273,8 +377,85 @@ def write_csv(date_cols: list, team_results: dict):
         rows.append(row)
     rows.append([''] * (len(date_cols) + 1))
 
+    # 섹션 4: 경기별 상세
+    rows.append(DETAIL_HEADER)
+    rows.extend(detail_rows)
+
     with open(OUTPUT_FILE, 'w', encoding='utf-8', newline='') as f:
         csv.writer(f).writerows(rows)
+
+
+def load_existing_detail():
+    """
+    기존 2026.csv의 상세 섹션(섹션4) → (데이터 행 리스트, 이미 기록된 날짜 집합).
+    상세 섹션이 없으면 (예: 합치기 전 형식) 빈 값을 반환한다.
+    """
+    if not os.path.exists(OUTPUT_FILE):
+        return [], set()
+
+    with open(OUTPUT_FILE, encoding='utf-8') as f:
+        rows = list(csv.reader(f))
+
+    # 상세 헤더 위치 찾기 (섹션1·2 헤더는 '날짜,3.28,...' 이므로 구분됨)
+    start = None
+    for i, r in enumerate(rows):
+        if r[:len(DETAIL_HEADER)] == DETAIL_HEADER:
+            start = i + 1
+            break
+    if start is None:
+        return [], set()
+
+    data_rows = [r for r in rows[start:] if r and r[0].strip()]
+    existing_dates = {r[0] for r in data_rows}
+    return data_rows, existing_dates
+
+# ─────────────────────────── 파일별 갱신 ──────────────────────────────────────
+
+def merge_main(all_games: list):
+    """본문(섹션1~3)을 증분 병합해 (날짜컬럼, 팀별결과) 반환."""
+    existing_cols, existing_results = load_existing_csv()
+    existing_set = set(existing_cols)
+    # 기존에 있는 날짜의 기본 키 (더블헤더 포함: "3.29.1" → "3.29"로 등록)
+    existing_base = {'.'.join(c.split('.')[:2]) for c in existing_cols}
+
+    new_games = [
+        g for g in all_games
+        if f"{g['month']}.{g['day']}" not in existing_base
+    ]
+
+    merged_cols    = list(existing_cols)
+    merged_results = {t: dict(existing_results[t]) for t in TEAMS}
+
+    if new_games:
+        new_cols, new_results = games_to_cols_results(new_games)
+        for col in new_cols:
+            if col not in existing_set:
+                merged_cols.append(col)
+        for team in TEAMS:
+            for col, val in new_results[team].items():
+                if col not in existing_set:
+                    merged_results[team][col] = val
+        merged_cols = sorted(set(merged_cols), key=sort_col)
+
+    print(f"[본문]   신규 {len(new_games)}경기")
+    return merged_cols, merged_results
+
+
+def merge_detail(all_games: list):
+    """상세(섹션4)를 증분 병합해 정렬된 행 리스트 반환."""
+    existing_rows, existing_dates = load_existing_detail()
+
+    new_games = [
+        g for g in all_games
+        if date(g['year'], g['month'], g['day']).strftime('%Y-%m-%d') not in existing_dates
+    ]
+
+    new_rows = [game_to_row(g, no) for (g, no) in assign_game_numbers(new_games)]
+    merged = existing_rows + new_rows
+    merged.sort(key=detail_row_sort_key)
+
+    print(f"[상세]   신규 {len(new_games)}경기")
+    return merged
 
 # ─────────────────────────── main ─────────────────────────────────────────────
 
@@ -285,64 +466,16 @@ def main():
     print(f"  현재: {now.strftime('%Y-%m-%d %H:%M')}")
     print(f"  출력: {OUTPUT_FILE}\n")
 
-    existing_cols, existing_results = load_existing_csv()
-    existing_set = set(existing_cols)
+    # API는 한 번만 호출하고, 그 결과를 본문/상세 두 섹션에 각각 증분 반영한 뒤
+    # 하나의 2026.csv로 함께 기록한다.
+    all_games = fetch_all_games(YEAR, MONTHS, today)
+    print(f"\n총 {len(all_games)}경기 수집\n")
 
-    # 기존에 있는 날짜의 기본 키 (더블헤더 포함: "3.29.1" → "3.29"로 등록)
-    existing_base = {'.'.join(c.split('.')[:2]) for c in existing_cols}
+    merged_cols, merged_results = merge_main(all_games)
+    merged_detail = merge_detail(all_games)
 
-    if existing_cols:
-        print(f"기존 데이터: {len(existing_cols)}개 날짜 (마지막: {existing_cols[-1]})\n")
-    else:
-        print("기존 데이터 없음, 새로 생성합니다.\n")
-
-    all_new_games = []
-
-    for month in MONTHS:
-        if date(YEAR, month, 1) > today:
-            print(f"[{month}월] 미래 달 - 스킵")
-            continue
-
-        print(f"[{month}월] API 호출 중...", end=' ', flush=True)
-        try:
-            data = fetch_month(YEAR, month)
-        except Exception as e:
-            print(f"실패: {e}")
-            continue
-
-        games = parse_pennant_games(data, YEAR, month, today)
-
-        # 이미 CSV에 있는 날짜(기본 키)는 건너뜀
-        new_games = [
-            g for g in games
-            if f"{g['month']}.{g['day']}" not in existing_base
-        ]
-        all_new_games.extend(new_games)
-        print(f"페넌트레이스 {len(games)}경기 수집, 신규 {len(new_games)}경기")
-
-    if not all_new_games:
-        print("\n새로운 경기 없음. 종료.")
-        return
-
-    new_cols, new_results = games_to_cols_results(all_new_games)
-
-    # 기존 + 신규 병합
-    merged_cols    = list(existing_cols)
-    merged_results = {t: dict(existing_results[t]) for t in TEAMS}
-
-    for col in new_cols:
-        if col not in existing_set:
-            merged_cols.append(col)
-    for team in TEAMS:
-        for col, val in new_results[team].items():
-            if col not in existing_set:
-                merged_results[team][col] = val
-
-    merged_cols = sorted(set(merged_cols), key=sort_col)
-
-    print(f"\n총 {len(all_new_games)}경기 추가")
-    write_csv(merged_cols, merged_results)
-    print("완료.")
+    write_csv(merged_cols, merged_results, merged_detail)
+    print("\n완료.")
 
 
 if __name__ == '__main__':
