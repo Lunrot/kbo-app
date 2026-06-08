@@ -223,6 +223,64 @@
       font-weight: 700;
     }
 
+    #standings {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 15px;
+    }
+
+    #standings th,
+    #standings td {
+      padding: 8px 6px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    #standings thead th {
+      font-size: 13px;
+      font-weight: 700;
+      color: #94a3b8;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    #standings tbody td {
+      border-bottom: 1px solid #f1f5f9;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #standings tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    #standings .rank {
+      width: 32px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    #standings .team {
+      text-align: left;
+    }
+
+    #standings .team .dot {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    #standings .team .name {
+      font-weight: 700;
+      vertical-align: middle;
+    }
+
+    #standings .rate {
+      font-weight: 700;
+      color: #0f172a;
+    }
+
     #uploadArea {
       margin-top: 0;
       font-size: 16px;
@@ -415,6 +473,26 @@
       <div id="teamSelect"></div>
     </div>
 
+    <div id="standingsCard" class="section-card">
+      <div class="controls-title">팀 순위</div>
+      <table id="standings">
+        <thead>
+          <tr>
+            <th>순위</th>
+            <th class="team">팀</th>
+            <th>경기</th>
+            <th>승</th>
+            <th>무</th>
+            <th>패</th>
+            <th>승률</th>
+            <th>게임차</th>
+            <th>승패마진</th>
+          </tr>
+        </thead>
+        <tbody id="standingsBody"></tbody>
+      </table>
+    </div>
+
     <div id="uploadArea" class="section-card">
       <div class="upload-title">데이터 파일</div>
       <div class="upload-row">
@@ -431,6 +509,7 @@
       data: {},
       winRate: {},
       teamOrder: {},
+      results: {},  // results[team] = [null, 1, -1, 0, ...]  (개별 경기 결과; 0=무, null=경기없음)
       detail: {},   // detail[team][MM-DD] = ["KIA 6 : 7 SSG (원정·패)", ...]
       dow: {}       // dow[MM-DD] = "토"
     };
@@ -536,14 +615,16 @@
     }
 
     // 특정 팀의 특정 날짜 점수 기록 → 호버 툴팁 텍스트
-    function buildHoverText(team, label) {
+    // margin: 그 시점 해당 팀의 누적 승패 마진 (예: -2)
+    function buildHoverText(team, label, margin) {
       const games = raw.detail[team]?.[label];
       if (!games || games.length === 0) {
         return label === "시작" ? "시즌 시작" : label;
       }
       const dow = raw.dow[label];
       const head = dow ? `${label} (${dow})` : label;
-      return head + "<br>" + games.join("<br>");
+      const m = (margin > 0 ? "+" : "") + margin;   // +3 / -2 / 0
+      return head + "<br>" + games.join("<br>") + ` (${m})`;
     }
 
     function parseCSVAndRender(contents) {
@@ -595,6 +676,17 @@
         raw.data[team] = [0, ...row.slice(1, lastValidIndex + 2).map(v => parseInt((v || '0').toString().trim(), 10))];
       }
 
+      // 섹션1: 개별 경기 결과 (1=승, -1=패, 0=무, 빈칸=경기없음) → 승/무/패 집계용
+      const resultRows = data.slice(1, 11).filter(r => r && r[0] !== "" && r[0] !== undefined);
+      raw.results = {};
+      for (const row of resultRows) {
+        const team = row[0];
+        raw.results[team] = [null, ...row.slice(1, lastValidIndex + 2).map(v => {
+          const s = (v ?? '').toString().trim();
+          return s === '' ? null : parseInt(s, 10);
+        })];
+      }
+
       const winRateRows = data.slice(24, 34).filter(r => r && r[0] !== "" && r[0] !== undefined);
 
       raw.winRate = {};
@@ -618,6 +710,7 @@
       updateSliderLabels(0, maxLength - 1);
       updateRangeUI(0, maxLength - 1);
       renderTeamCheckboxes(maxLength - 1);
+      renderStandings(maxLength - 1);
       drawGraph(0, maxLength - 1);
     }
 
@@ -668,6 +761,48 @@
         label.appendChild(checkbox);
         label.appendChild(textSpan);
         teamSelect.appendChild(label);
+      });
+    }
+
+    // 특정 시점(frame)의 팀 순위표를 그린다.
+    function renderStandings(frame) {
+      const body = document.getElementById("standingsBody");
+      if (!body) return;
+
+      const order = getSortedTeams(frame);
+      const leaderMargin = order.length
+        ? Math.max(...order.map(t => raw.data[t]?.[frame] ?? 0))
+        : 0;
+
+      body.innerHTML = "";
+
+      order.forEach((team, idx) => {
+        let w = 0, d = 0, l = 0;
+        const res = raw.results[team] || [];
+        for (let i = 1; i <= frame && i < res.length; i++) {
+          if (res[i] === 1) w++;
+          else if (res[i] === -1) l++;
+          else if (res[i] === 0) d++;
+        }
+        const games = w + d + l;
+        const rate = raw.winRate[team]?.[frame] ?? 0;
+        const margin = raw.data[team]?.[frame] ?? 0;
+        const gb = (leaderMargin - margin) / 2;
+        const color = raw.colors[team] || "#000000";
+
+        const tr = document.createElement("tr");
+        tr.innerHTML =
+          `<td class="rank">${idx + 1}</td>` +
+          `<td class="team"><span class="dot" style="background:${color}"></span>` +
+          `<span class="name" style="color:${color}">${team}</span></td>` +
+          `<td>${games}</td>` +
+          `<td>${w}</td>` +
+          `<td>${d}</td>` +
+          `<td>${l}</td>` +
+          `<td class="rate">${rate.toFixed(3)}</td>` +
+          `<td>${gb === 0 ? "-" : gb.toFixed(1)}</td>` +
+          `<td>${margin > 0 ? "+" + margin : margin}</td>`;
+        body.appendChild(tr);
       });
     }
 
@@ -761,7 +896,7 @@
       const traces = drawingOrder.map(team => {
         const x = dateColumns.slice(startFrame, endFrame + 1);
         const y = raw.data[team].slice(startFrame, endFrame + 1);
-        const text = x.map(label => buildHoverText(team, label));
+        const text = x.map((label, i) => buildHoverText(team, label, y[i]));
         const isSelected = selected.includes(team);
 
         const trace = {
@@ -885,6 +1020,7 @@
       updateSliderLabels(start, end);
       updateRangeUI(start, end);
       renderTeamCheckboxes(end);
+      renderStandings(end);
       drawGraph(start, end);
     }
 
