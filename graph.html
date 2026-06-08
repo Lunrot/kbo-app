@@ -89,13 +89,100 @@
       color: #475569;
     }
 
-    #slider {
+    .range-wrap {
       width: 80%;
-      display: block;
       margin: 0 auto;
+    }
+
+    .range-slider {
+      position: relative;
+      width: 100%;
       height: 24px;
-      max-width: 100%;
-      accent-color: #2563eb;
+    }
+
+    .range-track {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 6px;
+      transform: translateY(-50%);
+      background: #e2e8f0;
+      border-radius: 999px;
+    }
+
+    .range-fill {
+      position: absolute;
+      top: 50%;
+      height: 6px;
+      transform: translateY(-50%);
+      background: #2563eb;
+      border-radius: 999px;
+    }
+
+    .range-slider input[type="range"] {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 24px;
+      margin: 0;
+      background: none;
+      pointer-events: none;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .range-slider input[type="range"]::-webkit-slider-runnable-track {
+      background: none;
+      border: none;
+    }
+
+    .range-slider input[type="range"]::-moz-range-track {
+      background: none;
+      border: none;
+    }
+
+    .range-slider input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      pointer-events: auto;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 3px solid #2563eb;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    }
+
+    .range-slider input[type="range"]::-moz-range-thumb {
+      pointer-events: auto;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 3px solid #2563eb;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    }
+
+    #startSlider::-webkit-slider-thumb {
+      border-color: #16a34a;
+    }
+
+    #startSlider::-moz-range-thumb {
+      border-color: #16a34a;
+    }
+
+    .range-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #334155;
+      font-variant-numeric: tabular-nums;
     }
 
     #teamSelect {
@@ -179,9 +266,30 @@
         height: 480px;
       }
 
-      #slider {
+      .range-wrap {
         width: 96%;
-        height: 28px;
+      }
+
+      .range-slider {
+        height: 34px;
+      }
+
+      .range-slider input[type="range"] {
+        height: 34px;
+      }
+
+      .range-slider input[type="range"]::-webkit-slider-thumb {
+        width: 26px;
+        height: 26px;
+      }
+
+      .range-slider input[type="range"]::-moz-range-thumb {
+        width: 26px;
+        height: 26px;
+      }
+
+      .range-labels {
+        font-size: 15px;
       }
 
       #teamSelect {
@@ -236,9 +344,18 @@
         height: 300px;
       }
 
-      #slider {
+      .range-wrap {
         width: 96%;
-        height: 26px;
+      }
+
+      .range-slider input[type="range"]::-webkit-slider-thumb {
+        width: 22px;
+        height: 22px;
+      }
+
+      .range-slider input[type="range"]::-moz-range-thumb {
+        width: 22px;
+        height: 22px;
       }
 
       #teamSelect {
@@ -282,8 +399,19 @@
     </div>
 
     <div id="controls" class="section-card">
-      <div class="controls-title">팀 선택 / 시점 조절</div>
-      <input type="range" id="slider" min="0" max="0" value="0" step="1">
+      <div class="controls-title">팀 선택 / 기간 조절</div>
+      <div class="range-wrap">
+        <div class="range-slider">
+          <div class="range-track"></div>
+          <div class="range-fill" id="rangeFill"></div>
+          <input type="range" id="startSlider" min="0" max="0" value="0" step="1">
+          <input type="range" id="endSlider" min="0" max="0" value="0" step="1">
+        </div>
+        <div class="range-labels">
+          <span id="startLabel">-</span>
+          <span id="endLabel">-</span>
+        </div>
+      </div>
       <div id="teamSelect"></div>
     </div>
 
@@ -302,7 +430,9 @@
       colors: {},
       data: {},
       winRate: {},
-      teamOrder: {}
+      teamOrder: {},
+      detail: {},   // detail[team][MM-DD] = ["KIA 6 : 7 SSG (원정·패)", ...]
+      dow: {}       // dow[MM-DD] = "토"
     };
 
     let dateColumns = [];
@@ -324,6 +454,96 @@
       const titleEl = document.getElementById("chartTitle");
       const baseName = filename.replace(/\.[^/.]+$/, "");
       titleEl.textContent = `${baseName} KBO 팀 승패 그래프`;
+    }
+
+    function getCurrentRange() {
+      const start = Number(document.getElementById("startSlider").value);
+      const end = Number(document.getElementById("endSlider").value);
+      return { start, end };
+    }
+
+    function updateSliderLabels(start, end) {
+      document.getElementById("startLabel").textContent = dateColumns[start] ?? "-";
+      document.getElementById("endLabel").textContent = dateColumns[end] ?? "-";
+    }
+
+    function updateRangeUI(start, end) {
+      const startEl = document.getElementById("startSlider");
+      const endEl = document.getElementById("endSlider");
+      const fill = document.getElementById("rangeFill");
+      const max = Number(endEl.max) || 1;
+
+      const leftPct = (start / max) * 100;
+      const rightPct = (end / max) * 100;
+      fill.style.left = leftPct + "%";
+      fill.style.width = Math.max(0, rightPct - leftPct) + "%";
+
+      // 두 손잡이가 겹쳐도 둘 다 잡을 수 있도록 z-index 조정
+      if (start > max / 2) {
+        startEl.style.zIndex = 5;
+        endEl.style.zIndex = 4;
+      } else {
+        startEl.style.zIndex = 4;
+        endEl.style.zIndex = 5;
+      }
+    }
+
+    // 2026.csv의 상세 섹션(섹션4: 날짜,요일,경기,원정팀,원정점수,홈팀,홈점수)을 읽어
+    // raw.detail / raw.dow 를 채운다. 상세 섹션이 없으면 비워 둔다(이전 형식 호환).
+    function parseDetailSection(data) {
+      raw.detail = {};
+      raw.dow = {};
+
+      let start = -1;
+      for (let i = 0; i < data.length; i++) {
+        const r = data[i];
+        if (r && r[0] === "날짜" && r[1] === "요일" && r[2] === "경기") {
+          start = i + 1;
+          break;
+        }
+      }
+      if (start === -1) return;
+
+      for (let i = start; i < data.length; i++) {
+        const r = data[i];
+        if (!r || !r[0]) continue;
+
+        const dateStr = String(r[0]).trim();        // YYYY-MM-DD
+        const dow = String(r[1] ?? "").trim();
+        const awayTeam = String(r[3] ?? "").trim();
+        const awayScore = parseInt(r[4], 10);
+        const homeTeam = String(r[5] ?? "").trim();
+        const homeScore = parseInt(r[6], 10);
+
+        const parts = dateStr.split("-");
+        if (parts.length < 3) continue;
+        const label = `${parts[1]}-${parts[2]}`;     // MM-DD (dateColumns와 동일)
+        if (dow) raw.dow[label] = dow;
+
+        if (!awayTeam || !homeTeam || Number.isNaN(awayScore) || Number.isNaN(homeScore)) continue;
+
+        // CSV 순서(원정팀 먼저) 그대로. 양 팀 라인 모두 같은 문자열을 보여준다.
+        const line = `${awayTeam} ${awayScore} : ${homeScore} ${homeTeam}`;
+        addDetail(awayTeam, label, line);
+        addDetail(homeTeam, label, line);
+      }
+    }
+
+    function addDetail(team, label, line) {
+      if (!raw.detail[team]) raw.detail[team] = {};
+      if (!raw.detail[team][label]) raw.detail[team][label] = [];
+      raw.detail[team][label].push(line);
+    }
+
+    // 특정 팀의 특정 날짜 점수 기록 → 호버 툴팁 텍스트
+    function buildHoverText(team, label) {
+      const games = raw.detail[team]?.[label];
+      if (!games || games.length === 0) {
+        return label === "시작" ? "시즌 시작" : label;
+      }
+      const dow = raw.dow[label];
+      const head = dow ? `${label} (${dow})` : label;
+      return head + "<br>" + games.join("<br>");
     }
 
     function parseCSVAndRender(contents) {
@@ -383,14 +603,22 @@
         raw.winRate[team] = [0, ...row.slice(1, lastValidIndex + 2).map(v => parseFloat((v || '0').toString().trim()))];
       }
 
+      parseDetailSection(data);
+
       dateColumns = ['시작', ...dateColumns];
       maxLength = raw.data[raw.teams[0]].length;
 
-      document.getElementById("slider").max = maxLength - 1;
-      document.getElementById("slider").value = maxLength - 1;
+      const startSliderEl = document.getElementById("startSlider");
+      const endSliderEl = document.getElementById("endSlider");
+      startSliderEl.max = maxLength - 1;
+      startSliderEl.value = 0;
+      endSliderEl.max = maxLength - 1;
+      endSliderEl.value = maxLength - 1;
 
+      updateSliderLabels(0, maxLength - 1);
+      updateRangeUI(0, maxLength - 1);
       renderTeamCheckboxes(maxLength - 1);
-      drawGraph(maxLength - 1);
+      drawGraph(0, maxLength - 1);
     }
 
     function getSortedTeams(frame) {
@@ -429,8 +657,8 @@
         checkbox.checked = checkedMap[team] || false;
 
         checkbox.addEventListener("change", () => {
-          const currentFrame = Number(document.getElementById("slider").value);
-          drawGraph(currentFrame);
+          const { start, end } = getCurrentRange();
+          drawGraph(start, end);
         });
 
         const textSpan = document.createElement("span");
@@ -505,7 +733,7 @@
       return { shapes, annotations };
     }
 
-    function drawGraph(frame) {
+    function drawGraph(startFrame, endFrame) {
       const graphEl = document.getElementById("graph");
       const graphWrapEl = document.getElementById("graphWrap");
 
@@ -513,7 +741,7 @@
         document.querySelectorAll('#teamSelect input:checked')
       ).map(cb => cb.value);
 
-      const sortedTeams = getSortedTeams(frame);
+      const sortedTeams = getSortedTeams(endFrame);
       const drawingOrder = [...sortedTeams].reverse();
 
       const isMobile = isMobileScreen();
@@ -528,27 +756,42 @@
         ? Math.min(wrapWidth, viewportWidth - 20)
         : wrapWidth;
 
-      const traces = drawingOrder.map(team => {
-        const x = dateColumns.slice(0, frame + 1);
-        const y = raw.data[team].slice(0, frame + 1);
+      const hasSelection = selected.length > 0;
 
-        return {
+      const traces = drawingOrder.map(team => {
+        const x = dateColumns.slice(startFrame, endFrame + 1);
+        const y = raw.data[team].slice(startFrame, endFrame + 1);
+        const text = x.map(label => buildHoverText(team, label));
+        const isSelected = selected.includes(team);
+
+        const trace = {
           x: x,
           y: y,
+          text: text,
           type: "scatter",
           mode: "lines",
           name: team,
           line: { color: raw.colors[team], width: isMobile ? 4 : 3 },
-          opacity: selected.length === 0 || selected.includes(team) ? 1 : 0.2,
+          opacity: !hasSelection || isSelected ? 1 : 0.2,
           hoverlabel: {
             font: {
               size: isMobile ? 18 : 14
             }
           }
         };
+
+        // 팀이 선택된 경우: 선택되지 않은(흐린) 라인은 호버에서 제외해
+        // 라인이 겹쳐도 선택된 팀의 툴팁만 뜨도록 한다.
+        if (hasSelection && !isSelected) {
+          trace.hoverinfo = "skip";
+        } else {
+          trace.hovertemplate = "%{text}<extra></extra>";
+        }
+
+        return trace;
       });
 
-      const { shapes: monthShapes, annotations: monthAnnotations } = buildMonthBands(dateColumns.slice(0, frame + 1));
+      const { shapes: monthShapes, annotations: monthAnnotations } = buildMonthBands(dateColumns.slice(startFrame, endFrame + 1));
 
       Plotly.newPlot(graphEl, traces, {
         width: graphWidth,
@@ -556,6 +799,7 @@
         autosize: false,
         paper_bgcolor: "rgba(0,0,0,0)",
         plot_bgcolor: "rgba(248,250,252,0.75)",
+        hovermode: "closest",
         shapes: monthShapes,
         annotations: monthAnnotations,
         margin: {
@@ -633,16 +877,37 @@
       reader.readAsText(file);
     });
 
-    document.getElementById("slider").addEventListener("input", (e) => {
-      const frame = Number(e.target.value);
-      renderTeamCheckboxes(frame);
-      drawGraph(frame);
+    const startSliderEl = document.getElementById("startSlider");
+    const endSliderEl = document.getElementById("endSlider");
+
+    function applyRange() {
+      const { start, end } = getCurrentRange();
+      updateSliderLabels(start, end);
+      updateRangeUI(start, end);
+      renderTeamCheckboxes(end);
+      drawGraph(start, end);
+    }
+
+    startSliderEl.addEventListener("input", () => {
+      // 시작이 종료를 넘지 않도록 보정
+      if (Number(startSliderEl.value) > Number(endSliderEl.value)) {
+        endSliderEl.value = startSliderEl.value;
+      }
+      applyRange();
+    });
+
+    endSliderEl.addEventListener("input", () => {
+      // 종료가 시작보다 앞서지 않도록 보정
+      if (Number(endSliderEl.value) < Number(startSliderEl.value)) {
+        startSliderEl.value = endSliderEl.value;
+      }
+      applyRange();
     });
 
     window.addEventListener("resize", () => {
       if (raw.teams.length > 0) {
-        const frame = Number(document.getElementById("slider").value);
-        drawGraph(frame);
+        const { start, end } = getCurrentRange();
+        drawGraph(start, end);
       }
     });
   </script>
