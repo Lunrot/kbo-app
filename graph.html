@@ -223,46 +223,55 @@
       font-weight: 700;
     }
 
-    #standings {
+    #standings,
+    #pythTable {
       width: 100%;
       border-collapse: collapse;
       font-size: 15px;
     }
 
     #standings th,
-    #standings td {
+    #standings td,
+    #pythTable th,
+    #pythTable td {
       padding: 8px 6px;
       text-align: center;
       white-space: nowrap;
     }
 
-    #standings thead th {
+    #standings thead th,
+    #pythTable thead th {
       font-size: 13px;
       font-weight: 700;
       color: #94a3b8;
       border-bottom: 1px solid #e5e7eb;
     }
 
-    #standings tbody td {
+    #standings tbody td,
+    #pythTable tbody td {
       border-bottom: 1px solid #f1f5f9;
       font-variant-numeric: tabular-nums;
     }
 
-    #standings tbody tr:last-child td {
+    #standings tbody tr:last-child td,
+    #pythTable tbody tr:last-child td {
       border-bottom: none;
     }
 
-    #standings .rank {
+    #standings .rank,
+    #pythTable .rank {
       width: 32px;
       font-weight: 800;
       color: #0f172a;
     }
 
-    #standings .team {
+    #standings .team,
+    #pythTable .team {
       text-align: left;
     }
 
-    #standings .team .dot {
+    #standings .team .dot,
+    #pythTable .team .dot {
       display: inline-block;
       width: 12px;
       height: 12px;
@@ -271,14 +280,26 @@
       vertical-align: middle;
     }
 
-    #standings .team .name {
+    #standings .team .name,
+    #pythTable .team .name {
       font-weight: 700;
       vertical-align: middle;
     }
 
-    #standings .rate {
+    #standings .rate,
+    #pythTable .rate {
       font-weight: 700;
       color: #0f172a;
+    }
+
+    #pythTable .diff-plus {
+      color: #2563eb;
+      font-weight: 700;
+    }
+
+    #pythTable .diff-minus {
+      color: #dc2626;
+      font-weight: 700;
     }
 
     #uploadArea {
@@ -493,6 +514,26 @@
       </table>
     </div>
 
+    <div id="pythCard" class="section-card">
+      <div class="controls-title">피타고리안 승률</div>
+      <table id="pythTable">
+        <thead>
+          <tr>
+            <th>순위</th>
+            <th class="team">팀</th>
+            <th>경기</th>
+            <th>득점</th>
+            <th>실점</th>
+            <th>득실차</th>
+            <th>피타고리안 승률</th>
+            <th>실제 승률</th>
+            <th>차이</th>
+          </tr>
+        </thead>
+        <tbody id="pythBody"></tbody>
+      </table>
+    </div>
+
     <div id="uploadArea" class="section-card">
       <div class="upload-title">데이터 파일</div>
       <div class="upload-row">
@@ -572,6 +613,7 @@
     function parseDetailSection(data) {
       raw.detail = {};
       raw.dow = {};
+      raw.games = {};   // games[team][MM-DD] = [{scored, allowed}, ...]  (경기 순서대로)
 
       let start = -1;
       for (let i = 0; i < data.length; i++) {
@@ -605,6 +647,8 @@
         const line = `${awayTeam} ${awayScore} : ${homeScore} ${homeTeam}`;
         addDetail(awayTeam, label, line);
         addDetail(homeTeam, label, line);
+        addGame(awayTeam, label, awayScore, homeScore);
+        addGame(homeTeam, label, homeScore, awayScore);
       }
     }
 
@@ -612,6 +656,12 @@
       if (!raw.detail[team]) raw.detail[team] = {};
       if (!raw.detail[team][label]) raw.detail[team][label] = [];
       raw.detail[team][label].push(line);
+    }
+
+    function addGame(team, label, scored, allowed) {
+      if (!raw.games[team]) raw.games[team] = {};
+      if (!raw.games[team][label]) raw.games[team][label] = [];
+      raw.games[team][label].push({ scored, allowed });
     }
 
     // 특정 팀의 특정 날짜 점수 기록 → 호버 툴팁 텍스트
@@ -700,6 +750,8 @@
       dateColumns = ['시작', ...dateColumns];
       maxLength = raw.data[raw.teams[0]].length;
 
+      buildRunsCum();
+
       const startSliderEl = document.getElementById("startSlider");
       const endSliderEl = document.getElementById("endSlider");
       startSliderEl.max = maxLength - 1;
@@ -711,6 +763,7 @@
       updateRangeUI(0, maxLength - 1);
       renderTeamCheckboxes(maxLength - 1);
       renderStandings(maxLength - 1);
+      renderPythagorean(maxLength - 1);
       drawGraph(0, maxLength - 1);
     }
 
@@ -802,6 +855,99 @@
           `<td class="rate">${rate.toFixed(3)}</td>` +
           `<td>${gb === 0 ? "-" : gb.toFixed(1)}</td>` +
           `<td>${margin > 0 ? "+" + margin : margin}</td>`;
+        body.appendChild(tr);
+      });
+    }
+
+    // 팀별 누적 득점/실점을 dateColumns 인덱스(frame)에 맞춰 미리 계산한다.
+    // 더블헤더로 같은 날짜 라벨이 두 컬럼에 걸치는 경우, 섹션1의 경기 여부(null 아님)를
+    // 기준으로 그 날짜의 경기 목록을 순서대로 하나씩 소진한다.
+    function buildRunsCum() {
+      raw.runsCum = {};
+      for (const team of raw.teams) {
+        const res = raw.results[team] || [];
+        const used = {};   // label → 이미 소진한 경기 수
+        let rs = 0, ra = 0;
+        const cum = [{ rs: 0, ra: 0 }];
+
+        for (let i = 1; i < maxLength; i++) {
+          if (res[i] !== null && res[i] !== undefined) {
+            const label = dateColumns[i];
+            const list = raw.games?.[team]?.[label] || [];
+            const k = used[label] || 0;
+            const g = list[k];
+            if (g) {
+              rs += g.scored;
+              ra += g.allowed;
+              used[label] = k + 1;
+            }
+          }
+          cum.push({ rs, ra });
+        }
+        raw.runsCum[team] = cum;
+      }
+    }
+
+    // 피타고리안 승률 지수. 전통식은 2, 야구 실측에는 1.83이 더 잘 맞는 것으로 알려져 있다.
+    const PYTH_EXP = 2;
+
+    // 특정 시점(frame)의 피타고리안 승률 표를 그린다.
+    function renderPythagorean(frame) {
+      const body = document.getElementById("pythBody");
+      const card = document.getElementById("pythCard");
+      if (!body || !card) return;
+
+      // 상세 섹션이 없는 CSV(이전 형식)면 표 자체를 숨긴다
+      const hasRuns = raw.teams.some(t => {
+        const c = raw.runsCum?.[t]?.[frame];
+        return c && (c.rs > 0 || c.ra > 0);
+      });
+      card.style.display = hasRuns ? "" : "none";
+      if (!hasRuns) return;
+
+      const rows = raw.teams.map(team => {
+        const c = raw.runsCum[team]?.[frame] ?? { rs: 0, ra: 0 };
+        const actual = raw.winRate[team]?.[frame] ?? 0;
+        let pyth = null;
+        if (c.rs > 0 || c.ra > 0) {
+          const rsP = Math.pow(c.rs, PYTH_EXP);
+          const raP = Math.pow(c.ra, PYTH_EXP);
+          pyth = rsP / (rsP + raP);
+        }
+        let games = 0;
+        const res = raw.results[team] || [];
+        for (let i = 1; i <= frame && i < res.length; i++) {
+          if (res[i] !== null && res[i] !== undefined) games++;
+        }
+        return { team, games, rs: c.rs, ra: c.ra, pyth, actual };
+      });
+
+      rows.sort((a, b) => {
+        const pA = a.pyth ?? -1, pB = b.pyth ?? -1;
+        if (pB !== pA) return pB - pA;
+        return (raw.teamOrder[a.team] ?? 999) - (raw.teamOrder[b.team] ?? 999);
+      });
+
+      body.innerHTML = "";
+      rows.forEach((r, idx) => {
+        const color = raw.colors[r.team] || "#000000";
+        const rdiff = r.rs - r.ra;
+        const diff = r.pyth === null ? null : r.actual - r.pyth;
+        const diffCls = diff === null ? "" : (diff >= 0 ? "diff-plus" : "diff-minus");
+        const diffTxt = diff === null ? "-" : (diff >= 0 ? "+" : "") + diff.toFixed(3);
+
+        const tr = document.createElement("tr");
+        tr.innerHTML =
+          `<td class="rank">${idx + 1}</td>` +
+          `<td class="team"><span class="dot" style="background:${color}"></span>` +
+          `<span class="name" style="color:${color}">${r.team}</span></td>` +
+          `<td>${r.games}</td>` +
+          `<td>${r.rs}</td>` +
+          `<td>${r.ra}</td>` +
+          `<td>${rdiff > 0 ? "+" + rdiff : rdiff}</td>` +
+          `<td class="rate">${r.pyth === null ? "-" : r.pyth.toFixed(3)}</td>` +
+          `<td>${r.actual.toFixed(3)}</td>` +
+          `<td class="${diffCls}">${diffTxt}</td>`;
         body.appendChild(tr);
       });
     }
@@ -1021,6 +1167,7 @@
       updateRangeUI(start, end);
       renderTeamCheckboxes(end);
       renderStandings(end);
+      renderPythagorean(end);
       drawGraph(start, end);
     }
 
