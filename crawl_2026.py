@@ -28,7 +28,7 @@ from collections import defaultdict
 # TEAMS = ['KIA', '삼성', 'LG', '두산', 'KT', 'SSG', '롯데', '한화', 'NC', '키움']
 TEAMS = ['LG', '한화', 'SSG', '삼성', 'NC', 'KT', '롯데', 'KIA', '두산', '키움']
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-OUTPUT_FILE = os.path.join(SCRIPT_DIR, '2026.csv')
+OUTPUT_FILE = os.path.join(SCRIPT_DIR, 'public', '2026.csv')
 YEAR = 2026
 MONTHS = list(range(3, 11))  # 3월 ~ 10월 (시즌이 10월 초까지 이어질 수 있음)
 

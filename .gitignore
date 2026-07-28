@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+.DS_Store
+*.swp
+
+# 로컬 실험/디버그 산출물 (레포에 올리지 않음)
+debug/
