@@ -81,8 +81,7 @@
       margin-top: 0;
     }
 
-    .controls-title,
-    .upload-title {
+    .controls-title {
       margin: 0 0 10px 0;
       font-size: 14px;
       font-weight: 700;
@@ -302,23 +301,6 @@
       font-weight: 700;
     }
 
-    #uploadArea {
-      margin-top: 0;
-      font-size: 16px;
-    }
-
-    .upload-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    #csvFile {
-      font-size: 15px;
-      padding: 6px 0;
-    }
-
     /* 스마트폰 세로 */
     @media (max-width: 767px) and (orientation: portrait) {
       body {
@@ -388,13 +370,6 @@
         margin-right: 8px;
       }
 
-      #uploadArea {
-        font-size: 18px;
-      }
-
-      #csvFile {
-        font-size: 16px;
-      }
     }
 
     /* 스마트폰 가로 */
@@ -457,13 +432,6 @@
         flex-shrink: 0;
       }
 
-      #uploadArea {
-        font-size: 16px;
-      }
-
-      #csvFile {
-        font-size: 15px;
-      }
     }
   </style>
 </head>
@@ -534,13 +502,6 @@
       </table>
     </div>
 
-    <div id="uploadArea" class="section-card">
-      <div class="upload-title">데이터 파일</div>
-      <div class="upload-row">
-        <label for="csvFile">📂 CSV 업로드:</label>
-        <input type="file" id="csvFile" accept=".csv">
-      </div>
-    </div>
   </div>
 
   <script>
@@ -1145,18 +1106,6 @@
       .catch(error => {
         console.error("CSV 로딩 실패:", error);
       });
-
-    document.getElementById("csvFile").addEventListener("change", function(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        updateTitle(file.name);
-        parseCSVAndRender(e.target.result);
-      };
-      reader.readAsText(file);
-    });
 
     const startSliderEl = document.getElementById("startSlider");
     const endSliderEl = document.getElementById("endSlider");
